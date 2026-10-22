@@ -1,9 +1,18 @@
 ---
-# Lance une sauvegarde a la main (en plus du timer quotidien).
-- name: Dump PostgreSQL et envoi vers vm-media
+# Sauvegarde a la main (le timer quotidien est pose par le role backup).
+# Contenu : dump PostgreSQL + miroir du bucket MinIO. Les medias ne sont pas sauvegardes.
+- name: Sauvegarde Flixy vers vm-media
   hosts: app
   become: true
   tasks:
     - name: A faire - pg_dump dans le conteneur postgres
       ansible.builtin.debug:
-        msg: "dump de la base vers {{ backup_dir }} sur vm-media"
+        msg: "pg_dump -Fc de la base flixy"
+
+    - name: A faire - mc mirror du bucket MinIO
+      ansible.builtin.debug:
+        msg: "mc mirror {{ minio_bucket }}"
+
+    - name: A faire - rsync/SSH vers vm-media et purge
+      ansible.builtin.debug:
+        msg: "rsync vers {{ media_ip }}:{{ backup_dir }}, suppression au-dela de {{ backup_retention_days }} jours"

@@ -34,7 +34,7 @@
     - flixy_app
     - reverse_proxy
 
-- name: Sauvegarde PostgreSQL vers vm-media
+- name: Sauvegarde PostgreSQL + MinIO vers vm-media
   hosts: app:media
   become: true
   roles:

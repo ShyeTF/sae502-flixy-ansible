@@ -1,17 +1,28 @@
 ---
-# Restaure la base depuis un dump de vm-media.
-# Exemple : ansible-playbook playbooks/restore.yml -e backup_file=flixy-2026-10-22.sql.gz
-- name: Restauration de la base Flixy
+# Restauration.
+#   ansible-playbook playbooks/restore.yml                      -> dernier dump
+#   ansible-playbook playbooks/restore.yml -e backup_file=...   -> dump choisi
+# Les configs (Radarr, Prowlarr, qBittorrent, nginx, compose) ne sont pas
+# sauvegardees : deploy.yml les recree depuis l'inventaire et Vault.
+# Les medias ne sont ni sauvegardes ni touches.
+
+- name: Recreer les configs et les conteneurs
+  ansible.builtin.import_playbook: deploy.yml
+
+- name: Restauration des donnees Flixy
   hosts: app
   become: true
   vars:
-    backup_file: ""
+    backup_file: latest
   tasks:
-    - name: Verifier qu'un fichier de sauvegarde est donne
-      ansible.builtin.assert:
-        that: backup_file | length > 0
-        fail_msg: "Passer -e backup_file=<nom du dump>"
-
-    - name: A faire - recuperer le dump et lancer pg_restore
+    - name: A faire - choisir le dump
       ansible.builtin.debug:
-        msg: "restauration de {{ backup_file }}"
+        msg: "dump : {{ backup_file }} (dernier de {{ media_ip }}:{{ backup_dir }} par defaut)"
+
+    - name: A faire - PostgreSQL
+      ansible.builtin.debug:
+        msg: "arret api, drop/create de la base, pg_restore, migrator puis api"
+
+    - name: A faire - MinIO
+      ansible.builtin.debug:
+        msg: "recopie du miroir dans le bucket {{ minio_bucket }}"

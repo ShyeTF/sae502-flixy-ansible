@@ -4,9 +4,14 @@
   ansible.builtin.file:
     path: "{{ data_path }}"
     state: directory
-    mode: "0755"
+    owner: "{{ flixy_uid }}"
+    group: "{{ flixy_gid }}"
+    mode: "{{ data_mode }}"
   become: true
 
-- name: A faire - export NFS sur vm-media, montage sur vm-app
+- name: A faire
   ansible.builtin.debug:
-    msg: "nfs : {{ data_path }} ({{ 'export' if 'media' in group_names else 'montage' }})"
+    msg: >-
+      {{ 'nfs : export NFSv4 vers ' ~ nfs_export_client ~ ' (' ~ nfs_export_options ~ '), UFW 2049 depuis vm-app'
+         if 'media' in group_names else
+         'nfs : ansible.posix.mount ' ~ data_path ~ ' (' ~ nfs_mount_opts ~ '), test mountpoint + ecriture uid ' ~ flixy_uid }}

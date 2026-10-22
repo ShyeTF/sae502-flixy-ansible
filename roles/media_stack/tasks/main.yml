@@ -1,9 +1,9 @@
 ---
 # tasks file for media_stack
-- name: A faire - compose Prowlarr, Radarr, qBittorrent
+- name: A faire - compose
   ansible.builtin.debug:
-    msg: "media_stack : {{ images.radarr }}, {{ images.prowlarr }}, {{ images.qbittorrent }}"
+    msg: "media_stack : Radarr publie {{ ports.radarr }} (DOCKER-USER, {{ app_ip }} seulement), Prowlarr et qBittorrent non publies, PUID {{ flixy_uid }}"
 
-- name: A faire - configuration par API REST (module uri)
+- name: A faire - config par API
   ansible.builtin.debug:
-    msg: "client de telechargement, categorie radarr, dossier racine, indexeur, webhook"
+    msg: "media_stack : GET puis POST/PUT si difference (client, categorie, racine, indexeur, webhook https://{{ app_ip }}{{ webhook_path }})"

@@ -7,6 +7,11 @@ vault.yml
 # inventaire reel (seul l'exemple est versionne)
 inventory/hosts.yml
 
+# medias de demo (jamais dans le depot)
+*.mp4
+*.mkv
+*.zip
+
 # divers
 *.retry
 .DS_Store

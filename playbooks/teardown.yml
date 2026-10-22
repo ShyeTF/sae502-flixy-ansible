@@ -2,6 +2,7 @@
 # Arrete et supprime les conteneurs.
 # Par defaut les volumes sont gardes. Pour tout supprimer :
 #   ansible-playbook playbooks/teardown.yml -e keep_volumes=false
+# /data/flixy (medias) n'est jamais supprime.
 - name: Suppression de Flixy
   hosts: app:media
   become: true

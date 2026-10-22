@@ -1,0 +1,5 @@
+---
+collections:
+  - name: ansible.posix       # module mount
+  - name: community.docker    # docker_compose_v2
+  - name: community.general

@@ -2,15 +2,11 @@
 # tasks file for common
 - name: Installer les paquets de base
   ansible.builtin.apt:
-    name:
-      - sudo
-      - curl
-      - ufw
-      - rsync
+    name: [sudo, curl, ufw, rsync, iptables-persistent]
     state: present
     update_cache: true
   become: true
 
-- name: A faire - utilisateur technique, cles SSH, ufw
+- name: A faire
   ansible.builtin.debug:
-    msg: "common : base installee sur {{ inventory_hostname }}"
+    msg: "common : user deploy + cle SSH, IP fixe, UFW (22 depuis {{ admin_ip }}, defaut deny)"

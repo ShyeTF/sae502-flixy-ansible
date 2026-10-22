@@ -7,6 +7,6 @@
     mode: "0750"
   become: true
 
-- name: A faire - compose Jinja2 (web, api, migrator, postgres, valkey, minio)
+- name: A faire
   ansible.builtin.debug:
-    msg: "flixy_app : {{ images.postgres }}, {{ images.valkey }}, {{ images.minio }}"
+    msg: "flixy_app : compose Jinja2 (web/api/migrator {{ flixy_image_tag }}, postgres, valkey, minio non publies), verif NFS avant up, migrator avant api"

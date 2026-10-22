@@ -8,6 +8,6 @@
   become: true
   when: "'media' in group_names"
 
-- name: A faire - pg_dump quotidien + rsync vers vm-media
+- name: A faire
   ansible.builtin.debug:
-    msg: "backup : conservation {{ backup_retention_days }} jours"
+    msg: "backup : timer quotidien pg_dump + mc mirror {{ minio_bucket }}, rsync/SSH vers vm-media, {{ backup_retention_days }} jours"
