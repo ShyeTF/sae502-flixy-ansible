@@ -1,0 +1,5 @@
+---
+# tasks file for reverse_proxy
+- name: A faire - nginx, certificat auto-signe, redirection 80 vers 443
+  ansible.builtin.debug:
+    msg: "reverse_proxy : {{ images.nginx }} devant api:{{ ports.api }}"

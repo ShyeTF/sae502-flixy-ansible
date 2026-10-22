@@ -1,0 +1,13 @@
+---
+# Arrete et supprime les conteneurs.
+# Par defaut les volumes sont gardes. Pour tout supprimer :
+#   ansible-playbook playbooks/teardown.yml -e keep_volumes=false
+- name: Suppression de Flixy
+  hosts: app:media
+  become: true
+  vars:
+    keep_volumes: true
+  tasks:
+    - name: A faire - docker compose down
+      ansible.builtin.debug:
+        msg: "compose down sur {{ inventory_hostname }} (volumes {{ 'gardes' if keep_volumes | bool else 'supprimes' }})"

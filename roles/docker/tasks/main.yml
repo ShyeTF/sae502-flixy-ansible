@@ -1,0 +1,13 @@
+---
+# tasks file for docker
+- name: Installer les prerequis pour le depot Docker
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - gnupg
+    state: present
+  become: true
+
+- name: A faire - depot officiel Docker, docker-ce et compose plugin
+  ansible.builtin.debug:
+    msg: "docker : a installer sur {{ inventory_hostname }}"

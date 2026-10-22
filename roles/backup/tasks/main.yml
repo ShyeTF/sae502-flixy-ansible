@@ -1,0 +1,13 @@
+---
+# tasks file for backup
+- name: Creer le dossier des sauvegardes
+  ansible.builtin.file:
+    path: "{{ backup_dir }}"
+    state: directory
+    mode: "0750"
+  become: true
+  when: "'media' in group_names"
+
+- name: A faire - pg_dump quotidien + rsync vers vm-media
+  ansible.builtin.debug:
+    msg: "backup : conservation {{ backup_retention_days }} jours"

@@ -1,0 +1,12 @@
+---
+# tasks file for nfs
+- name: Creer le dossier des medias
+  ansible.builtin.file:
+    path: "{{ data_path }}"
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: A faire - export NFS sur vm-media, montage sur vm-app
+  ansible.builtin.debug:
+    msg: "nfs : {{ data_path }} ({{ 'export' if 'media' in group_names else 'montage' }})"

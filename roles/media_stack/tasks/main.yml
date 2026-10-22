@@ -1,0 +1,9 @@
+---
+# tasks file for media_stack
+- name: A faire - compose Prowlarr, Radarr, qBittorrent
+  ansible.builtin.debug:
+    msg: "media_stack : {{ images.radarr }}, {{ images.prowlarr }}, {{ images.qbittorrent }}"
+
+- name: A faire - configuration par API REST (module uri)
+  ansible.builtin.debug:
+    msg: "client de telechargement, categorie radarr, dossier racine, indexeur, webhook"

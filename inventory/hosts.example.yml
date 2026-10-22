@@ -1,0 +1,14 @@
+# Inventaire d'exemple. Copier en hosts.yml et mettre les vraies IP des VM.
+all:
+  vars:
+    ansible_user: deploy
+    ansible_python_interpreter: /usr/bin/python3
+  children:
+    app:
+      hosts:
+        vm-app:
+          ansible_host: 192.168.1.50
+    media:
+      hosts:
+        vm-media:
+          ansible_host: 192.168.1.51

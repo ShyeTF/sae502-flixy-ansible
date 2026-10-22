@@ -1,0 +1,12 @@
+# secrets
+inventory/group_vars/all/vault.yml
+vault.yml
+.vault_pass
+.vault_pass*
+
+# inventaire reel (seul l'exemple est versionne)
+inventory/hosts.yml
+
+# divers
+*.retry
+.DS_Store

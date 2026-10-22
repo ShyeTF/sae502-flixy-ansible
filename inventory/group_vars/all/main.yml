@@ -1,0 +1,26 @@
+---
+# Variables communes aux deux VM.
+# Versions figees, jamais de latest.
+
+data_path: /data/flixy
+compose_dir: /opt/flixy
+
+images:
+  postgres: "postgres:18.6-alpine"
+  valkey: "valkey/valkey:9.1.2-alpine"
+  minio: "pgsty/minio:RELEASE.2026-08-04T00-00-00Z"
+  nginx: "nginx:1.30.6-alpine"
+  radarr: "lscr.io/linuxserver/radarr:6.4.4"
+  prowlarr: "lscr.io/linuxserver/prowlarr:2.6.5"
+  qbittorrent: "lscr.io/linuxserver/qbittorrent:5.2.4"
+
+# Ports internes (non publies sauf 443 et 7878 vers vm-app)
+ports:
+  api: 3000
+  radarr: 7878
+  prowlarr: 9696
+  qbittorrent: 8080
+
+# Duree de conservation des dumps PostgreSQL (jours)
+backup_retention_days: 7
+backup_dir: /srv/backups/flixy

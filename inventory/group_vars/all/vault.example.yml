@@ -1,0 +1,13 @@
+---
+# Exemple de fichier de secrets, valeurs FACTICES.
+# Copier en vault.yml puis chiffrer :
+#   cp vault.example.yml vault.yml && ansible-vault encrypt vault.yml
+vault_postgres_password: "changeme-postgres"
+vault_minio_root_user: "flixy-minio"
+vault_minio_root_password: "changeme-minio"
+vault_radarr_api_key: "00000000000000000000000000000000"
+vault_prowlarr_api_key: "00000000000000000000000000000000"
+vault_qbittorrent_password: "changeme-qbit"
+vault_tmdb_api_key: "changeme-tmdb"
+vault_radarr_webhook_secret: "changeme-webhook"
+vault_jwt_secret: "changeme-jwt"

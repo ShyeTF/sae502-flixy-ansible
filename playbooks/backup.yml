@@ -1,0 +1,9 @@
+---
+# Lance une sauvegarde a la main (en plus du timer quotidien).
+- name: Dump PostgreSQL et envoi vers vm-media
+  hosts: app
+  become: true
+  tasks:
+    - name: A faire - pg_dump dans le conteneur postgres
+      ansible.builtin.debug:
+        msg: "dump de la base vers {{ backup_dir }} sur vm-media"

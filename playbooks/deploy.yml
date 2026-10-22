@@ -1,0 +1,41 @@
+---
+# Deploiement complet de Flixy sur les deux VM vierges.
+# Ordre : common > docker > nfs > media_stack > flixy_app > reverse_proxy > backup
+
+- name: Base systeme et Docker sur les deux VM
+  hosts: app:media
+  become: true
+  roles:
+    - common
+    - docker
+
+- name: NFS - export de data_path sur vm-media
+  hosts: media
+  become: true
+  roles:
+    - nfs
+
+- name: NFS - montage de data_path sur vm-app
+  hosts: app
+  become: true
+  roles:
+    - nfs
+
+- name: Pile media (Prowlarr, Radarr, qBittorrent)
+  hosts: media
+  become: true
+  roles:
+    - media_stack
+
+- name: Application Flixy et reverse proxy
+  hosts: app
+  become: true
+  roles:
+    - flixy_app
+    - reverse_proxy
+
+- name: Sauvegarde PostgreSQL vers vm-media
+  hosts: app:media
+  become: true
+  roles:
+    - backup

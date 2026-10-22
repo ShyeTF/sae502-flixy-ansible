@@ -1,0 +1,17 @@
+---
+# Restaure la base depuis un dump de vm-media.
+# Exemple : ansible-playbook playbooks/restore.yml -e backup_file=flixy-2026-10-22.sql.gz
+- name: Restauration de la base Flixy
+  hosts: app
+  become: true
+  vars:
+    backup_file: ""
+  tasks:
+    - name: Verifier qu'un fichier de sauvegarde est donne
+      ansible.builtin.assert:
+        that: backup_file | length > 0
+        fail_msg: "Passer -e backup_file=<nom du dump>"
+
+    - name: A faire - recuperer le dump et lancer pg_restore
+      ansible.builtin.debug:
+        msg: "restauration de {{ backup_file }}"
