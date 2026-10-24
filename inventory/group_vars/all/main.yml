@@ -23,9 +23,19 @@ nfs_export_client: "{{ app_ip }}"
 nfs_export_options: "rw,sync,no_subtree_check,root_squash"
 nfs_mount_opts: "nfsvers=4.2,_netdev"
 
+# Tags verifies le 24/10/2026, digests dans docs/images.md
+
 # Images construites par la CI GitLab, tag fixe pour la SAE
+# (sae-1.0 pas encore construit, voir docs/images.md)
 flixy_registry: registry.gitlab.com/kineflix
 flixy_image_tag: sae-1.0
+
+# Commit utilise pour chaque image Flixy. A completer quand sae-1.0 est construit,
+# repris dans le manifest.json de chaque sauvegarde.
+flixy_code_refs:
+  web: "a completer"
+  api: "a completer"
+  migrator: "a completer"
 
 images:
   web: "{{ flixy_registry }}/front-end/web:{{ flixy_image_tag }}"
@@ -34,6 +44,7 @@ images:
   postgres: "postgres:18.6-alpine"
   valkey: "valkey/valkey:9.1.2-alpine"
   minio: "pgsty/minio:RELEASE.2026-08-04T00-00-00Z"
+  mc: "pgsty/mc:RELEASE.2026-08-04T00-00-00Z"   # client MinIO pour backup/restore
   nginx: "nginx:1.30.6-alpine"
   radarr: "lscr.io/linuxserver/radarr:6.4.4"
   prowlarr: "lscr.io/linuxserver/prowlarr:2.6.5"
