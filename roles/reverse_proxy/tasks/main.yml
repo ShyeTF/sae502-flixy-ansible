@@ -3,3 +3,10 @@
 - name: A faire
   ansible.builtin.debug:
     msg: "reverse_proxy : seul conteneur publie (80/443), 301 80->443, cert auto-signe, {{ webhook_path }} autorise depuis {{ webhook_allowed_ip }} seulement"
+
+- name: A faire - mode maintenance
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'maintenance : 503 sur / et sur ' ~ webhook_path
+         if flixy_maintenance | bool else
+         'mode normal' }}

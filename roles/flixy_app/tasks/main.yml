@@ -7,6 +7,26 @@
     mode: "0750"
   become: true
 
+- name: Verrou de restauration present ?
+  ansible.builtin.stat:
+    path: "{{ restore_lock_file }}"
+  register: restore_lock
+
+- name: Demarrer ou non l'api
+  ansible.builtin.set_fact:
+    flixy_start_writers: "{{ not (flixy_maintenance | bool) and not restore_lock.stat.exists }}"
+
 - name: A faire
   ansible.builtin.debug:
-    msg: "flixy_app : compose Jinja2 (web/api/migrator {{ flixy_image_tag }}, postgres, valkey, minio non publies), verif NFS avant up, migrator avant api"
+    msg: "flixy_app : compose Jinja2 (web/api/migrator {{ flixy_image_tag }}, postgres, valkey, minio non publies), verif NFS avant up"
+
+- name: A faire - services de donnees
+  ansible.builtin.debug:
+    msg: "compose up -d postgres valkey minio web (toujours)"
+
+- name: A faire - migrator puis api
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'compose run --rm migrator puis up -d api'
+         if flixy_start_writers else
+         'maintenance ou restauration en cours : ' ~ (flixy_write_services | join(', ')) ~ ' pas demarres' }}

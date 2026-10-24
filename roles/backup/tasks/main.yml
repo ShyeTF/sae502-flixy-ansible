@@ -1,13 +1,27 @@
 ---
 # tasks file for backup
-- name: Creer le dossier des sauvegardes
+- name: Creer le dossier des sauvegardes (vm-media)
   ansible.builtin.file:
     path: "{{ backup_dir }}"
     state: directory
-    mode: "0750"
+    mode: "0700"
   become: true
   when: "'media' in group_names"
 
-- name: A faire
+- name: Creer le dossier de preparation (vm-app)
+  ansible.builtin.file:
+    path: "{{ backup_staging_dir }}"
+    state: directory
+    mode: "0700"
+  become: true
+  when: "'app' in group_names"
+
+- name: A faire - script et timer
   ansible.builtin.debug:
-    msg: "backup : timer quotidien pg_dump + mc mirror {{ minio_bucket }}, rsync/SSH vers vm-media, {{ backup_retention_days }} jours"
+    msg: "vm-app : /usr/local/sbin/flixy-backup [backup_id] (memes etapes que backup.yml) + timer systemd {{ backup_timer_oncalendar }}"
+  when: "'app' in group_names"
+
+- name: A faire - acces SSH restreint
+  ansible.builtin.debug:
+    msg: "vm-media : utilisateur backup, cle de vm-app limitee a rsync dans {{ backup_dir }}"
+  when: "'media' in group_names"
