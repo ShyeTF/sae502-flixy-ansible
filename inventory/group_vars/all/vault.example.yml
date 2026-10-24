@@ -11,3 +11,5 @@ vault_qbittorrent_password: "changeme-qbit"
 vault_tmdb_api_key: "changeme-tmdb"
 vault_radarr_webhook_secret: "changeme-webhook"
 vault_jwt_secret: "changeme-jwt"
+vault_gitlab_registry_user: "changeme-deploy-token-user"   # deploy token GitLab, read_registry
+vault_gitlab_registry_token: "changeme-deploy-token"

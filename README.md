@@ -27,17 +27,19 @@ Périmètre : films uniquement (Radarr). Pas de Sonarr, pas de GPU, pas de tunne
 - Passerelle 192.168.1.1, IP fixes dans l'inventaire.
 - Le Mac est le nœud de contrôle Ansible (SSH par clé, utilisateur `deploy`).
 - Images figées dans `inventory/group_vars/all/main.yml` : postgres 18.6, valkey 9.1.2,
-  minio RELEASE.2026-08-04, nginx 1.30.6, radarr 6.4.4, prowlarr 2.6.5,
-  qbittorrent 5.2.4.
+  minio et mc RELEASE.2026-08-04, nginx 1.30.6, radarr 6.4.4, prowlarr 2.6.5,
+  qbittorrent 5.2.4. Disponibilité vérifiée le 24/10/2026, tags et digests dans
+  `docs/images.md`.
 - web, api et migrator sont construites par la CI de mon GitLab avec un tag fixe pour la
-  SAÉ (`flixy_image_tag`, ex. `sae-1.0`). Jamais de `latest`.
+  SAÉ (`flixy_image_tag` = `sae-1.0`, pas encore construit). Jamais de `latest`. Les
+  commits utilisés seront notés dans `docs/images.md` et `flixy_code_refs`.
 
 ## Flux
 
 1. L'utilisateur demande un film sur le site (nginx -> web / api).
 2. L'api met la demande dans une file (Valkey) et ajoute le film dans Radarr par son API.
 3. Radarr cherche via Prowlarr et envoie le téléchargement à qBittorrent (catégorie radarr).
-4. Radarr range le fichier dans `/data/flixy` et appelle le webhook
+4. Radarr range le fichier dans `/data/flixy/films` et appelle le webhook
    `https://192.168.1.50/v1/radarr/webhook` (secret Bearer).
 5. L'api ajoute le film au catalogue PostgreSQL. Le fichier est lu sur le montage NFS.
 
@@ -68,21 +70,36 @@ seulement. Tout le reste en deny.
 - avant le `compose up`, le rôle vérifie `mountpoint -q /data/flixy` et une écriture en
   uid 1000. Si ça rate, le playbook s'arrête.
 
+## Configuration de Radarr
+
+Les configs ne sont pas sauvegardées, donc `deploy.yml` recrée tout l'état de Radarr par
+son API, pas seulement la connexion : dossier racine, profil qualité, gestion des
+médias et nommage, client qBittorrent et sa catégorie, indexeurs (déclarés dans Prowlarr
+et synchronisés), webhook Connect. Chaque élément est lu (GET) avant un POST ou un PUT.
+Détail dans `docs/radarr.md`.
+
 ## Sauvegarde et restauration
 
-`backup.yml` (et un timer quotidien posé par le rôle backup) :
-- dump PostgreSQL + `mc mirror` du bucket MinIO
-- envoi en rsync/SSH sur vm-media, conservation 7 jours
+Détail complet dans `docs/sauvegarde-restauration.md`.
 
-`restore.yml` :
-- relance d'abord `deploy.yml`, qui recrée les configs (Radarr, Prowlarr, qBittorrent,
-  nginx, compose) depuis l'inventaire et Vault
-- PostgreSQL : arrêt de l'api, recréation de la base, `pg_restore` du dump choisi
-  (le dernier par défaut), puis migrator et api
-- MinIO : recopie du miroir
-- les médias ne sont ni sauvegardés ni touchés
+`backup.yml` (et un timer quotidien posé par le rôle backup) crée un **jeu identifié**
+`/srv/backups/flixy/<backup_id>/` sur vm-media (`backup_id` = horodatage) :
+- `postgres.dump` + copie du bucket MinIO prise au même moment (écritures de l'api
+  arrêtées quelques secondes)
+- `SHA256SUMS` et `manifest.json` (id, date, tags et digests des images, commits du
+  code, nb de lignes par table, nb d'objets)
+- rétention 7 jours, en gardant toujours le dernier jeu complet
 
-Les deux VM sont sur le même Proxmox, donc ça ne protège pas d'une panne du serveur.
+`restore.yml -e backup_id=<id>` (le dernier jeu complet par défaut) :
+1. contrôle du jeu (sha256), verrou de restauration sur vm-app
+2. `deploy.yml` en `flixy_maintenance: true` : configs recréées, mais api, worker et
+   migrator arrêtés, nginx en 503 (site et webhook), Radarr arrêté
+3. `pg_restore` du dump et remise du bucket MinIO à l'état du jeu
+4. vérification (lignes par table et objets identiques au manifest)
+5. seulement ensuite : migrator, api, sortie de maintenance, Radarr
+
+Les médias ne sont ni sauvegardés ni touchés. Les deux VM sont sur le même Proxmox, donc
+ça ne protège pas d'une panne du serveur.
 
 ## Test d'idempotence
 
@@ -91,16 +108,19 @@ Les deux VM sont sur le même Proxmox, donc ça ne protège pas d'une panne du s
 - le migrator n'applique rien au 2e passage
 - le module mount ne change rien
 
-Les sorties des deux passages sont gardées dans `tests/`. Procédure dans `tests/README.md`.
+Les sorties des deux passages et les preuves de restauration sont gardées dans
+`tests/preuves/`, sans secrets. Procédure dans `tests/README.md`.
 
 ## Médias de démo et repli
 
 Uniquement Big Buck Bunny et Sintel (Blender Foundation, CC BY 3.0) et une vidéo de test
 générée avec ffmpeg. Licences, liens et attribution dans `docs/medias.md`.
 
-Si la recherche ou le téléchargement externe ne marche pas : je dépose le fichier dans
-`/data/flixy/import`, je lance l'import manuel Radarr par API (commande
-`DownloadedMoviesScan`), puis le webhook ajoute le film au catalogue comme d'habitude.
+Si la recherche ou le téléchargement externe ne marche pas, je passe à une démo de
+secours, présentée comme une démo **de l'import et du webhook**, pas de la recherche :
+je dépose le fichier dans `/data/flixy/import`, je lance l'import Radarr par API
+(`DownloadedMoviesScan`), puis le webhook ajoute le film au catalogue. Elle est testée à
+l'avance, procédure et checklist dans `docs/secours.md`.
 
 ## Arborescence
 
@@ -109,8 +129,8 @@ ansible.cfg  requirements.yml
 inventory/   hosts.example.yml, group_vars/all/{main.yml, vault.example.yml}
 roles/       common, docker, nfs, media_stack, flixy_app, reverse_proxy, backup
 playbooks/   deploy.yml, backup.yml, restore.yml, teardown.yml
-docs/        medias.md
-tests/       idempotence
+docs/        medias.md, images.md, radarr.md, sauvegarde-restauration.md, secours.md
+tests/       README.md (procédures), preuves/ (vraies sorties, sans secrets)
 ```
 
 Ordre des rôles dans `deploy.yml` : common, docker, nfs (vm-media puis vm-app),
@@ -134,7 +154,7 @@ ansible-playbook playbooks/deploy.yml --syntax-check
 
 ansible-playbook playbooks/deploy.yml --ask-vault-pass
 ansible-playbook playbooks/backup.yml --ask-vault-pass
-ansible-playbook playbooks/restore.yml --ask-vault-pass                  # dernier dump
-ansible-playbook playbooks/restore.yml -e backup_file=<dump> --ask-vault-pass
+ansible-playbook playbooks/restore.yml --ask-vault-pass                  # dernier jeu complet
+ansible-playbook playbooks/restore.yml -e backup_id=20261024-030000 --ask-vault-pass
 ansible-playbook playbooks/teardown.yml                                  # garde les volumes
 ```
