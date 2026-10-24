@@ -4,6 +4,27 @@
   ansible.builtin.debug:
     msg: "media_stack : Radarr publie {{ ports.radarr }} (DOCKER-USER, {{ app_ip }} seulement), Prowlarr et qBittorrent non publies, PUID {{ flixy_uid }}"
 
-- name: A faire - config par API
+- name: A faire - fichiers de config avant le 1er demarrage
   ansible.builtin.debug:
-    msg: "media_stack : GET puis POST/PUT si difference (client, categorie, racine, indexeur, webhook https://{{ app_ip }}{{ webhook_path }})"
+    msg: "config.xml Radarr et Prowlarr (ApiKey depuis Vault, auth Forms), qBittorrent.conf (mot de passe Vault)"
+
+- name: A faire - etat de Radarr par API (GET avant POST/PUT)
+  ansible.builtin.debug:
+    msg: "{{ item.endpoint }} : {{ item.quoi }}"
+  loop:
+    - { endpoint: "qbittorrent /api/v2/torrents/categories", quoi: "categorie {{ qbittorrent_category }} -> {{ qbittorrent_category_path }}" }
+    - { endpoint: "/api/v3/rootfolder", quoi: "{{ radarr_root_folder }}" }
+    - { endpoint: "/api/v3/qualityprofile", quoi: "profil {{ radarr_quality_profile }}" }
+    - { endpoint: "/api/v3/config/mediamanagement", quoi: "hardlinks, droits {{ data_mode }}" }
+    - { endpoint: "/api/v3/config/naming", quoi: "{{ radarr_movie_folder_format }}" }
+    - { endpoint: "/api/v3/config/host", quoi: "certificateValidation {{ radarr_certificate_validation }}" }
+    - { endpoint: "/api/v3/downloadclient", quoi: "{{ radarr_download_client.name }}, categorie {{ qbittorrent_category }}" }
+    - { endpoint: "prowlarr /api/v1/applications", quoi: "Radarr {{ radarr_url_internal }}, {{ prowlarr_app_sync_level }}" }
+    - { endpoint: "prowlarr /api/v1/indexer", quoi: "indexeurs de prowlarr_indexers, puis ApplicationIndexerSync" }
+    - { endpoint: "/api/v3/notification?forceSave=true", quoi: "webhook {{ radarr_webhook.url }}" }
+  loop_control:
+    label: "{{ item.endpoint }}"
+
+- name: A faire - controle final de l'etat
+  ansible.builtin.debug:
+    msg: "GET de chaque endpoint + assert (racine, profil, client, au moins 1 indexeur synchro, webhook actif), changed_when: false"

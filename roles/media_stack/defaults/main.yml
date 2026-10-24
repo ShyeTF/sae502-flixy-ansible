@@ -1,3 +1,54 @@
 #SPDX-License-Identifier: MIT-0
 ---
 # defaults file for roles/media_stack
+# Etat complet de Radarr recree par API (voir docs/radarr.md).
+# Chaque element : GET de la liste, recherche par nom, POST si absent, PUT si different.
+
+radarr_url: "http://localhost:{{ ports.radarr }}"
+prowlarr_url_internal: "http://prowlarr:{{ ports.prowlarr }}"
+radarr_url_internal: "http://radarr:{{ ports.radarr }}"
+qbittorrent_url_internal: "http://qbittorrent:{{ ports.qbittorrent }}"
+
+# meme systeme de fichiers pour downloads et films -> deplacement/hardlink, pas de copie
+radarr_root_folder: "{{ data_path }}/films"
+downloads_path: "{{ data_path }}/downloads"
+
+radarr_quality_profile: "HD-1080p"     # profil livre avec Radarr, recree s'il manque
+
+qbittorrent_category: radarr
+qbittorrent_category_path: "{{ downloads_path }}/{{ qbittorrent_category }}"
+
+radarr_download_client:
+  name: qBittorrent
+  implementation: QBittorrent
+  host: qbittorrent
+  port: "{{ ports.qbittorrent }}"
+  category: "{{ qbittorrent_category }}"
+
+radarr_webhook:
+  name: Flixy
+  url: "https://{{ app_ip }}{{ webhook_path }}"
+  method: POST
+  on_download: true
+  on_upgrade: true
+  on_movie_delete: true
+  on_movie_file_delete: true
+
+# config/mediamanagement
+radarr_media_management:
+  renameMovies: true
+  copyUsingHardlinks: true
+  setPermissionsLinux: true
+  chmodFolder: "{{ data_mode }}"
+  chownGroup: "{{ flixy_gid }}"
+
+# config/naming
+radarr_movie_folder_format: "{Movie Title} ({Release Year})"
+radarr_movie_file_format: "{Movie Title} ({Release Year}) {Quality Full}"
+
+# config/host : le cert de nginx est auto-signe
+radarr_certificate_validation: disabledForLocalAddresses
+
+# Prowlarr : application Radarr en synchro complete, indexeurs a choisir
+prowlarr_app_sync_level: fullSync
+prowlarr_indexers: []   # a completer : indexeurs publics, contenus libres uniquement
