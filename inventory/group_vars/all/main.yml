@@ -30,12 +30,12 @@ nfs_mount_opts: "nfsvers=4.2,_netdev"
 flixy_registry: registry.gitlab.com/kineflix
 flixy_image_tag: sae-1.0
 
-# Commit utilise pour chaque image Flixy. A completer quand sae-1.0 est construit,
-# repris dans le manifest.json de chaque sauvegarde.
+# Commit prevu pour chaque image Flixy (branche leo-p), repris dans le manifest.json
+# de chaque sauvegarde. A confirmer quand sae-1.0 est construit.
 flixy_code_refs:
-  web: "a completer"
-  api: "a completer"
-  migrator: "a completer"
+  web: "feb36a6a530bd08108c94ca4b69b1aea1db65864"       # kineflix/front-end, leo-p
+  api: "44e371bb29f15637114ce78cac4e7aa0da9c1b55"       # kineflix/back-end, leo-p
+  migrator: "44e371bb29f15637114ce78cac4e7aa0da9c1b55"  # meme depot et meme commit que l'api
 
 images:
   web: "{{ flixy_registry }}/front-end/web:{{ flixy_image_tag }}"

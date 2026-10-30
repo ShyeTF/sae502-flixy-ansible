@@ -60,9 +60,18 @@ Une fois le tag construit, je remplis ce tableau et la variable `flixy_code_refs
 
 | Image | Dépôt GitLab | Commit (SHA complet) | Pipeline CI | Digest de l'image |
 |---|---|---|---|---|
-| web:sae-1.0 | à compléter | à compléter | à compléter | à compléter |
-| api:sae-1.0 | à compléter | à compléter | à compléter | à compléter |
-| migrator:sae-1.0 | à compléter | à compléter | à compléter | à compléter |
+| web:sae-1.0 | kineflix/front-end (branche leo-p) | feb36a6a530bd08108c94ca4b69b1aea1db65864 (prévu) | à compléter | à compléter |
+| api:sae-1.0 | kineflix/back-end (branche leo-p, `Dockerfile`) | 44e371bb29f15637114ce78cac4e7aa0da9c1b55 (prévu) | à compléter | à compléter |
+| migrator:sae-1.0 | kineflix/back-end (branche leo-p, `migrator/Dockerfile`) | 44e371bb29f15637114ce78cac4e7aa0da9c1b55 (prévu) | à compléter | à compléter |
+
+Les commits « prévus » sont ceux de la branche `leo-p` au 30/10. Celui du back-end contient la route
+`/v1/health` (7a2b854) et la migration 0014. api et migrator viennent du même commit, car les migrations
+sont dans `libs/database/src/migrations`. Le front vient de `leo-p` (MR !16), pas de `main`.
+
+Aujourd'hui, la CI du back-end ne construit d'images que depuis `main` (tags `latest` + id du job)
+ou depuis un tag git `v*` (tags `v…` + `prod`). Pour avoir `sae-1.0` sans toucher à `latest` ni à `prod`,
+il faut ajouter à la CI un job déclenché sur un tag git `sae-*`. Pour tirer les images depuis
+les VM, il faut un deploy token GitLab en scope `read_registry` (dans le vault, jamais en clair).
 
 Pour récupérer les infos :
 
