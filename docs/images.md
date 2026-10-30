@@ -73,3 +73,8 @@ git rev-parse sae-1.0
 # digest de l'image poussee (apres docker login sur le registre GitLab)
 docker buildx imagetools inspect registry.gitlab.com/kineflix/back-end/api:sae-1.0
 ```
+
+## Contraintes sur le code
+
+- La route `GET /v1/health` existe seulement à partir du commit `7a2b854` de la branche `leo-p` de l'api. Le tag `sae-1.0` de l'api doit donc être construit depuis ce commit ou un commit plus récent, sinon le contrôle de santé du déploiement renvoie 404.
+- Le worker BullMQ tourne dans le conteneur `api` (il n'y a qu'une app, `apps/api`). Il s'arrête en même temps que l'api pendant une restauration.

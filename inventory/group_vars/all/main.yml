@@ -71,13 +71,13 @@ backup_id_format: "%Y%m%d-%H%M%S"       # backup_id = horodatage, ex. 20261024-0
 backup_retention_days: 7                # on garde toujours au moins le dernier jeu complet
 backup_timer_oncalendar: "*-*-* 03:00:00"
 
-# Maintenance (restauration). A true : api, worker et migrator ne sont pas demarres
+# Maintenance (restauration). A true : api (qui fait aussi tourner le worker BullMQ) et migrator ne sont pas demarres
 # et nginx renvoie 503 (site + webhook). Ne pas changer ici, restore.yml le passe a true.
 flixy_maintenance: false
 restore_lock_file: "{{ compose_dir }}/.restauration-en-cours"
 # services qui ecrivent dans la base ou dans MinIO, arretes pendant la restauration
-# (ajouter worker si le worker BullMQ est un conteneur separe de l'api)
+# le worker BullMQ tourne dans le conteneur api, pas de conteneur a part
 flixy_write_services:
   - api
   - migrator
-flixy_health_path: /v1/health           # a verifier dans l'api
+flixy_health_path: /v1/health           # teste postgres, valkey et minio, 503 si une dependance tombe

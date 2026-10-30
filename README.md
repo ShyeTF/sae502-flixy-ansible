@@ -92,8 +92,8 @@ Détail complet dans `docs/sauvegarde-restauration.md`.
 
 `restore.yml -e backup_id=<id>` (le dernier jeu complet par défaut) :
 1. contrôle du jeu (sha256), verrou de restauration sur vm-app
-2. `deploy.yml` en `flixy_maintenance: true` : configs recréées, mais api, worker et
-   migrator arrêtés, nginx en 503 (site et webhook), Radarr arrêté
+2. `deploy.yml` en `flixy_maintenance: true` : configs recréées, mais api (et donc le worker BullMQ)
+   et migrator arrêtés, nginx en 503 (site et webhook), Radarr arrêté
 3. `pg_restore` du dump et remise du bucket MinIO à l'état du jeu
 4. vérification (lignes par table et objets identiques au manifest)
 5. seulement ensuite : migrator, api, sortie de maintenance, Radarr
