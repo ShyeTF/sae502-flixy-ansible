@@ -124,3 +124,16 @@ git -C back-end  archive --format=tar.gz -o back-44e371bb29f15637114ce78cac4e7aa
 git -C front-end archive --format=tar.gz -o front-feb36a6a530bd08108c94ca4b69b1aea1db65864.tar.gz feb36a6a530bd08108c94ca4b69b1aea1db65864
 # puis copier les deux fichiers dans .src/ a la racine du depot Ansible
 ```
+
+## Images construites le 12/11/2026 sur vm-app (tag local `sae-1.0`)
+
+Jamais poussées sur un registre (ni celui de Flixy ni un autre), `pull_policy: never`.
+
+| image | commit (label `org.opencontainers.image.revision`) | Id de l'image |
+|---|---|---|
+| `flixy-sae/api:sae-1.0` | back-end `44e371bb29f15637114ce78cac4e7aa0da9c1b55` | `sha256:e71f0dc3512cb71fce6650bf59a048b79a6fb965e7986a61f50d113851be2f05` |
+| `flixy-sae/migrator:sae-1.0` | back-end `44e371bb29f15637114ce78cac4e7aa0da9c1b55` | `sha256:5481fe13c49692eb0e3941915ee7e61ca06b3ca379fc2492680a4710756fc92f` |
+| `flixy-sae/web:sae-1.0` | front-end `feb36a6a530bd08108c94ca4b69b1aea1db65864` | `sha256:4492b704b1f1524208e42b676c1b1622ce3e94d3b217f20d65c976e538528e07` |
+
+Ce sont des Id locaux (pas des digests de registre, puisque rien n'est poussé).
+Preuve : `tests/preuves/http-et-images.txt`.

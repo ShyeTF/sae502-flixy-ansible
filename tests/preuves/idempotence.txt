@@ -1,0 +1,9 @@
+# deploy.yml lance deux fois de suite - 12/11/2026 13:22 (heure de Paris)
+## 1er passage complet (deploy-12)
+vm-app                     : ok=67   changed=20   unreachable=0    failed=0    skipped=19   rescued=0    ignored=0   
+vm-media                   : ok=88   changed=7    unreachable=0    failed=0    skipped=32   rescued=0    ignored=0   
+
+## 2e passage (deploy-13) : changed=0 attendu
+vm-app                     : ok=63   changed=0    unreachable=0    failed=0    skipped=21   rescued=0    ignored=0   
+vm-media                   : ok=85   changed=0    unreachable=0    failed=0    skipped=34   rescued=0    ignored=0   
+

@@ -1,0 +1,7 @@
+# Etat de Radarr apres deploy.yml (2e passage) - 12/11/2026 13:22 (heure de Paris)
+dossier racine : /data/flixy/films
+profil : HD-1080p (id 4)
+client : qBittorrent (test OK)
+indexeurs dans Radarr : aucun
+webhook : Flixy -> https://192.168.1.54/v1/radarr/webhook
+ATTENTION : prowlarr_indexers est vide, seule la demo de secours est possible

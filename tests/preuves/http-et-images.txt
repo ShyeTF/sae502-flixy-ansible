@@ -1,0 +1,18 @@
+# Verifications HTTP depuis vm-app - 12/11/2026 13:22 (heure de Paris)
+flixy-nginx  nginx:1.30.6-alpine  Up 5 minutes
+flixy-api  flixy-sae/api:sae-1.0  Up 5 minutes (healthy)
+flixy-postgres  postgres:18.6-alpine  Up 6 minutes (healthy)
+flixy-minio  pgsty/minio:RELEASE.2026-08-04T00-00-00Z  Up 6 minutes (healthy)
+flixy-web  flixy-sae/web:sae-1.0  Up 6 minutes
+flixy-valkey  valkey/valkey:9.1.2-alpine  Up 6 minutes (healthy)
+http://192.168.1.54/ -> 301 https://192.168.1.54/
+https://192.168.1.54/ -> 307 (redirection du site)
+{"status":"ok"} <- https://192.168.1.54/v1/health 200
+POST webhook depuis vm-app (pas l IP de Radarr) -> 403
+
+## images Flixy construites (tag sae-1.0)
+flixy-sae/api:sae-1.0 sha256:e71f0dc3512cb71fce6650bf59a048b79a6fb965e7986a61f50d113851be2f05 revision=44e371bb29f15637114ce78cac4e7aa0da9c1b55
+flixy-sae/migrator:sae-1.0 sha256:5481fe13c49692eb0e3941915ee7e61ca06b3ca379fc2492680a4710756fc92f revision=44e371bb29f15637114ce78cac4e7aa0da9c1b55
+flixy-sae/web:sae-1.0 sha256:4492b704b1f1524208e42b676c1b1622ce3e94d3b217f20d65c976e538528e07 revision=feb36a6a530bd08108c94ca4b69b1aea1db65864
+POST webhook depuis vm-media SANS secret -> 401
+POST webhook depuis vm-media mauvais secret -> 401
