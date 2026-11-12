@@ -97,3 +97,16 @@ docker image inspect -f '{{.Id}} {{index .Config.Labels "org.opencontainers.imag
   les clés de test officielles de Cloudflare.
 - Le clone en lecture seule demande que le nœud de contrôle ait accès en lecture aux dépôts
   (compte de Léo).
+
+## Si le noeud de controle n'a pas acces au GitLab
+
+Le clone se fait en lecture seule. Si la machine qui lance Ansible n'a pas d'accès
+au GitLab, on peut déposer les archives à la main (faites sur un poste qui a l'accès),
+le role ne clone plus et utilise directement ces fichiers :
+
+```bash
+# sur un poste qui a acces aux depots (lecture seule, aucune ecriture)
+git -C back-end  archive --format=tar.gz -o back-44e371bb29f15637114ce78cac4e7aa0da9c1b55.tar.gz  44e371bb29f15637114ce78cac4e7aa0da9c1b55
+git -C front-end archive --format=tar.gz -o front-feb36a6a530bd08108c94ca4b69b1aea1db65864.tar.gz feb36a6a530bd08108c94ca4b69b1aea1db65864
+# puis copier les deux fichiers dans .src/ a la racine du depot Ansible
+```

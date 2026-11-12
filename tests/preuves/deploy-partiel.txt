@@ -1,0 +1,28 @@
+# Preuve partielle - 12/11/2026 12:08 (heure de Paris)
+# deploy.yml lance 2 fois de suite (deploy-6 puis deploy-7), arret au clone du code Flixy (pas d'acces lecture au GitLab depuis le noeud de controle)
+
+## PLAY RECAP du 2e passage
+PLAY RECAP *********************************************************************
+vm-app                     : ok=31   changed=0    unreachable=0    failed=1    skipped=10   rescued=0    ignored=0   
+vm-media                   : ok=64   changed=0    unreachable=0    failed=0    skipped=25   rescued=0    ignored=0   
+
+## erreur attendue (role flixy_app)
+TASK [flixy_app : Code Flixy - clone en lecture seule au commit fixe (noeud de controle)] ***
+
+## vm-media : conteneurs
+radarr  lscr.io/linuxserver/radarr:6.4.4  Up 18 minutes
+qbittorrent  lscr.io/linuxserver/qbittorrent:5.2.4  Up 18 minutes
+prowlarr  lscr.io/linuxserver/prowlarr:2.6.5  Up 18 minutes
+
+## vm-media : export NFS
+/data/flixy   	192.168.1.54(sync,wdelay,hide,no_subtree_check,sec=sys,rw,secure,root_squash,no_all_squash)
+
+## vm-app : montage NFS et pare-feu
+TARGET      SOURCE                   FSTYPE OPTIONS
+/data/flixy 192.168.1.55:/data/flixy nfs4   rw,relatime,vers=4.2,rsize=131072,wsize=131072,namlen=255,hard,proto=tcp,timeo=600,retrans=2,sec=sys,clientaddr=192.168.1.54,local_lock=none,addr=192.168.1.55
+Status: active
+
+     To                         Action      From
+     --                         ------      ----
+[ 1] 22/tcp                     ALLOW IN    192.168.1.10               # ssh admin
+
