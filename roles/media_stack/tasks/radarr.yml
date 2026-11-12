@@ -83,13 +83,14 @@
         headers:
           X-Api-Key: "{{ vault_radarr_api_key }}"
         return_content: true
-      register: profils
+      register: profils_apres
       no_log: true
 
 # l'api Flixy a besoin de l'id du profil (RADARR_PROFILE), lu par le role flixy_app
 - name: Radarr - id du profil {{ radarr_quality_profile }}
   ansible.builtin.set_fact:
-    radarr_profile_id: "{{ (profils.json | selectattr('name', 'equalto', radarr_quality_profile) | first).id }}"
+    # profils_apres n'existe que si on vient de recreer le profil
+    radarr_profile_id: "{{ ((profils_apres.json | default(profils.json)) | selectattr('name', 'equalto', radarr_quality_profile) | first).id }}"
 
 # --- configs uniques ---
 - name: Radarr - gestion des medias (hardlinks, droits)
@@ -147,28 +148,5 @@
       movieCategory: "{{ radarr_download_client.category }}"
     p_secrets: [password]
 
-# --- webhook vers l'api Flixy ---
-# forceSave : Radarr teste l'URL a l'enregistrement, et au 1er deploiement (ou en
-# maintenance) l'api ne repond pas encore
-- name: Radarr - webhook Flixy
-  ansible.builtin.include_tasks: provider.yml
-  vars:
-    p_api: "{{ radarr_api }}"
-    p_cle: "{{ vault_radarr_api_key }}"
-    p_endpoint: notification
-    p_nom: "{{ radarr_webhook.name }}"
-    p_schema: Webhook
-    p_query: "?forceSave=true"
-    p_champs:
-      onGrab: false
-      onDownload: "{{ radarr_webhook.on_download }}"
-      onUpgrade: "{{ radarr_webhook.on_upgrade }}"
-      onMovieDelete: "{{ radarr_webhook.on_movie_delete }}"
-      onMovieFileDelete: "{{ radarr_webhook.on_movie_file_delete }}"
-    p_fields:
-      url: "{{ radarr_webhook.url }}"
-      method: "{{ radarr_webhook.method | int }}"
-      headers:
-        - key: Authorization
-          value: "Bearer {{ vault_radarr_webhook_secret }}"
-    p_secrets: [headers]
+# le webhook vers l'api Flixy est dans webhook.yml : il est pose a la fin de
+# deploy.yml, une fois l'api et nginx demarres (Radarr teste l'URL meme avec forceSave)

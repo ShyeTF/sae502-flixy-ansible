@@ -114,5 +114,4 @@
 - name: Etat de Prowlarr
   ansible.builtin.include_tasks: prowlarr.yml
 
-- name: Controle final de l'etat
-  ansible.builtin.include_tasks: controle.yml
+# le controle final (controle.yml) est lance a la fin de deploy.yml, apres le webhook

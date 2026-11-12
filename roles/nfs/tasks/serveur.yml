@@ -21,6 +21,13 @@
     mode: "{{ data_mode }}"
   loop: "{{ nfs_sous_dossiers }}"
 
+# /etc/exports.d n'existe pas toujours sur une Debian 13 neuve
+- name: Dossier /etc/exports.d
+  ansible.builtin.file:
+    path: /etc/exports.d
+    state: directory
+    mode: "0755"
+
 - name: Export NFSv4 vers vm-app uniquement
   ansible.builtin.copy:
     dest: /etc/exports.d/flixy.exports

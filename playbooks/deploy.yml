@@ -53,6 +53,21 @@
     - flixy_app
     - reverse_proxy
 
+- name: Webhook Radarr vers l'api Flixy (l'api doit deja repondre)
+  hosts: media
+  become: true
+  tasks:
+    - name: Webhook Radarr
+      ansible.builtin.include_role:
+        name: media_stack
+        tasks_from: webhook.yml
+      when: not flixy_maintenance | bool
+
+    - name: Controle final de la pile media (radarr-etat.txt)
+      ansible.builtin.include_role:
+        name: media_stack
+        tasks_from: controle.yml
+
 - name: Sauvegarde PostgreSQL + MinIO vers vm-media
   hosts: app:media
   become: true

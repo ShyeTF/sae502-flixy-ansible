@@ -1,0 +1,27 @@
+---
+# Webhook Radarr -> api Flixy (HTTPS via nginx sur vm-app).
+# Radarr envoie un evenement "Test" a l'enregistrement, meme avec forceSave :
+# il faut donc que l'api et nginx tournent deja, d'ou le passage en fin de deploy.yml.
+# En maintenance (nginx renvoie 503) on ne touche pas au webhook.
+- name: Radarr - webhook Flixy
+  ansible.builtin.include_tasks: provider.yml
+  vars:
+    p_api: "{{ radarr_api }}"
+    p_cle: "{{ vault_radarr_api_key }}"
+    p_endpoint: notification
+    p_nom: "{{ radarr_webhook.name }}"
+    p_schema: Webhook
+    p_query: "?forceSave=true"
+    p_champs:
+      onGrab: false
+      onDownload: "{{ radarr_webhook.on_download }}"
+      onUpgrade: "{{ radarr_webhook.on_upgrade }}"
+      onMovieDelete: "{{ radarr_webhook.on_movie_delete }}"
+      onMovieFileDelete: "{{ radarr_webhook.on_movie_file_delete }}"
+    p_fields:
+      url: "{{ radarr_webhook.url }}"
+      method: "{{ radarr_webhook.method | int }}"
+      headers:
+        - key: Authorization
+          value: "Bearer {{ vault_radarr_webhook_secret }}"
+    p_secrets: [headers]
