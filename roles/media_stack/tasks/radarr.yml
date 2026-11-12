@@ -50,7 +50,7 @@
       register: profil_modele
       no_log: true
 
-    # on autorise toutes les qualites (et groupes) en 1080p, coupure sur Bluray-1080p
+    # on autorise les qualites (et groupes) en 1080p, coupure sur Bluray-1080p (id 7)
     - name: Radarr - creer le profil
       ansible.builtin.uri:
         url: "{{ radarr_api }}/qualityprofile"
@@ -63,30 +63,17 @@
                'name': radarr_quality_profile,
                'upgradeAllowed': true,
                'cutoff': 7,
-               'items': profil_modele.json['items'] | map('combine', {'allowed': false}) | list
+               'items':
+                 (profil_modele.json['items'] | selectattr('quality', 'defined') | selectattr('quality.name', 'search', '1080p')
+                   | map('combine', {'allowed': true}) | list)
+                 + (profil_modele.json['items'] | selectattr('quality', 'defined') | rejectattr('quality.name', 'search', '1080p')
+                   | map('combine', {'allowed': false}) | list)
+                 + (profil_modele.json['items'] | selectattr('quality', 'undefined') | selectattr('name', 'search', '1080p')
+                   | map('combine', {'allowed': true}) | list)
+                 + (profil_modele.json['items'] | selectattr('quality', 'undefined') | rejectattr('name', 'search', '1080p')
+                   | map('combine', {'allowed': false}) | list)
              }) }}
         status_code: [200, 201]
-      register: profil_cree
-      changed_when: true
-      no_log: true
-
-    - name: Radarr - autoriser les qualites 1080p dans le nouveau profil
-      ansible.builtin.uri:
-        url: "{{ radarr_api }}/qualityprofile/{{ profil_cree.json.id }}"
-        method: PUT
-        headers:
-          X-Api-Key: "{{ vault_radarr_api_key }}"
-        body_format: json
-        body: >-
-          {{ profil_cree.json | combine({'items':
-               (profil_cree.json['items'] | selectattr('quality', 'defined') | selectattr('quality.name', 'search', '1080p')
-                 | map('combine', {'allowed': true}) | list)
-               + (profil_cree.json['items'] | selectattr('quality', 'defined') | rejectattr('quality.name', 'search', '1080p') | list)
-               + (profil_cree.json['items'] | selectattr('quality', 'undefined') | selectattr('name', 'search', '1080p')
-                 | map('combine', {'allowed': true}) | list)
-               + (profil_cree.json['items'] | selectattr('quality', 'undefined') | rejectattr('name', 'search', '1080p') | list)
-             }) }}
-        status_code: [200, 202]
       changed_when: true
       no_log: true
 
