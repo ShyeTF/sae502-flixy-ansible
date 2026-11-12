@@ -1,0 +1,6 @@
+---
+# vm-media : seul Radarr publie le 7878, et seulement pour vm-app (l'api Flixy)
+docker_user_regles:
+  - nom: radarr
+    port: "{{ ports.radarr }}"
+    sources: ["{{ app_ip }}"]

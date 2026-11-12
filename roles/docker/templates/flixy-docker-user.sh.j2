@@ -1,0 +1,18 @@
+#!/bin/sh
+# {{ ansible_managed }}
+# Filtrage des ports publies par Docker (chaine DOCKER-USER).
+# --ctorigdstport : on regarde le port d'origine, avant le DNAT de Docker.
+set -e
+
+iptables -N DOCKER-USER 2>/dev/null || true
+iptables -F DOCKER-USER
+
+{% for r in docker_user_regles %}
+# {{ r.nom }} : port {{ r.port }}
+{% for src in r.sources %}
+iptables -A DOCKER-USER -p tcp -m conntrack --ctorigdstport {{ r.port }} --ctdir ORIGINAL -s {{ src }} -j RETURN
+{% endfor %}
+iptables -A DOCKER-USER -p tcp -m conntrack --ctorigdstport {{ r.port }} --ctdir ORIGINAL -j DROP
+{% endfor %}
+
+iptables -A DOCKER-USER -j RETURN

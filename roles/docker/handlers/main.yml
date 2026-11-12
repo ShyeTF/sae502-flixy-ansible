@@ -1,3 +1,9 @@
-#SPDX-License-Identifier: MIT-0
 ---
-# handlers file for roles/docker
+- name: Recharger systemd
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Relancer flixy-docker-user
+  ansible.builtin.systemd_service:
+    name: flixy-docker-user
+    state: restarted

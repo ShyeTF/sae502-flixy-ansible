@@ -1,0 +1,9 @@
+---
+# vm-app : seul nginx publie 80/443, ouverts au LAN seulement
+docker_user_regles:
+  - nom: nginx http
+    port: 80
+    sources: ["{{ lan_cidr }}"]
+  - nom: nginx https
+    port: 443
+    sources: ["{{ lan_cidr }}"]

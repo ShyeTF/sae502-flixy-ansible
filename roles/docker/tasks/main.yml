@@ -4,8 +4,76 @@
   ansible.builtin.apt:
     name: [ca-certificates, gnupg]
     state: present
-  become: true
 
-- name: A faire
-  ansible.builtin.debug:
-    msg: "docker : depot Docker {{ debian_release }}, docker-ce + compose, drop-in RequiresMountsFor sur vm-app"
+- name: Depot officiel Docker pour Debian {{ debian_release }}
+  ansible.builtin.deb822_repository:
+    name: docker
+    types: [deb]
+    uris: https://download.docker.com/linux/debian
+    suites: ["{{ debian_release }}"]
+    components: [stable]
+    architectures: [amd64]
+    signed_by: https://download.docker.com/linux/debian/gpg
+  register: depot_docker
+
+- name: Mettre a jour le cache apt si le depot vient d'etre ajoute
+  ansible.builtin.apt:
+    update_cache: true
+  when: depot_docker.changed  # noqa: no-handler
+
+- name: Installer Docker Engine et Compose
+  ansible.builtin.apt:
+    name: "{{ docker_paquets }}"
+    state: present
+
+- name: Docker demarre au boot
+  ansible.builtin.systemd_service:
+    name: docker
+    state: started
+    enabled: true
+
+# Sur vm-app, Docker doit attendre le montage NFS (sinon l'api demarre sur un /data/flixy vide)
+- name: Dossier du drop-in docker.service
+  ansible.builtin.file:
+    path: /etc/systemd/system/docker.service.d
+    state: directory
+    mode: "0755"
+  when: "'app' in group_names"
+
+- name: Drop-in RequiresMountsFor={{ data_path }} (vm-app)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/docker.service.d/flixy-nfs.conf
+    content: |
+      # pose par Ansible (role docker) : Docker attend le montage NFS
+      [Unit]
+      RequiresMountsFor={{ data_path }}
+    mode: "0644"
+  when: "'app' in group_names"
+  notify: Recharger systemd
+
+# --- filtrage DOCKER-USER ---
+# Quand Docker publie un port, ses regles iptables passent avant UFW. On filtre donc
+# aussi dans DOCKER-USER. Le script est relance par systemd a chaque demarrage de
+# Docker (PartOf), c'est ce qui rend les regles persistantes.
+- name: Script des regles DOCKER-USER
+  ansible.builtin.template:
+    src: flixy-docker-user.sh.j2
+    dest: /usr/local/sbin/flixy-docker-user
+    mode: "0750"
+  notify: Relancer flixy-docker-user
+
+- name: Service systemd flixy-docker-user
+  ansible.builtin.template:
+    src: flixy-docker-user.service.j2
+    dest: /etc/systemd/system/flixy-docker-user.service
+    mode: "0644"
+  notify:
+    - Recharger systemd
+    - Relancer flixy-docker-user
+
+- name: Activer flixy-docker-user
+  ansible.builtin.systemd_service:
+    name: flixy-docker-user
+    enabled: true
+    state: started
+    daemon_reload: true

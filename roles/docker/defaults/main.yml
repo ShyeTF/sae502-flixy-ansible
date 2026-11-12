@@ -1,3 +1,12 @@
-#SPDX-License-Identifier: MIT-0
 ---
-# defaults file for roles/docker
+docker_paquets:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
+
+# Regles de la chaine DOCKER-USER (ports publies par Docker, qui passent devant UFW).
+# Chaque entree : port publie sur l'hote + sources autorisees, tout le reste est jete.
+# Definies dans group_vars (app / media), vide par defaut.
+docker_user_regles: []

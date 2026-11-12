@@ -1,0 +1,13 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Regles DOCKER-USER de Flixy
+After=docker.service
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/flixy-docker-user
+
+[Install]
+WantedBy=docker.service
