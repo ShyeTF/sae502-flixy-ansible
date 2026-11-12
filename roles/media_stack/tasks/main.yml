@@ -36,6 +36,21 @@
     label: "{{ item.dossier }}"
   no_log: true
 
+# force: false ci-dessus (Radarr reecrit son config.xml). Pour qu'un changement de
+# cle dans Vault (rotation) soit applique, on impose quand meme la ligne ApiKey.
+- name: Cle API de Radarr et Prowlarr toujours egale a celle de Vault
+  ansible.builtin.replace:
+    path: "{{ media_compose_dir }}/{{ item.dossier }}/config.xml"
+    regexp: "<ApiKey>(?!{{ item.cle }}<).*</ApiKey>"
+    replace: "<ApiKey>{{ item.cle }}</ApiKey>"
+  loop:
+    - { dossier: radarr, cle: "{{ vault_radarr_api_key }}" }
+    - { dossier: prowlarr, cle: "{{ vault_prowlarr_api_key }}" }
+  loop_control:
+    label: "{{ item.dossier }}"
+  register: cles_api
+  no_log: true
+
 # qBittorrent attend le mot de passe en PBKDF2 (sha512, 100000 tours). Le sel est
 # derive du mot de passe pour que le resultat soit toujours le meme (idempotence).
 - name: Hash PBKDF2 du mot de passe qBittorrent
@@ -71,6 +86,14 @@
   community.docker.docker_compose_v2:
     project_src: "{{ media_compose_dir }}"
     state: present
+
+# la cle n'est relue qu'au demarrage
+- name: Redemarrer Radarr / Prowlarr si leur cle API a change  # noqa: no-handler
+  community.docker.docker_compose_v2:
+    project_src: "{{ media_compose_dir }}"
+    services: "{{ cles_api.results | selectattr('changed') | map(attribute='item.dossier') | list }}"
+    state: restarted
+  when: cles_api is changed
 
 # --- attendre que les API repondent ---
 - name: Attendre l'API de Radarr

@@ -84,6 +84,7 @@
     - p_actuel != {}
     - (p_actuel | combine(p_champs | default({}))) != p_actuel
       or (p_fields_actuels | combine(p_fields_compares)) != p_fields_actuels
+      or (p_forcer | default(false) | bool)
   changed_when: true
   register: p_put
   no_log: true

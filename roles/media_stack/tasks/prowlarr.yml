@@ -30,6 +30,8 @@
       baseUrl: "{{ radarr_url_internal }}"
       apiKey: "{{ vault_radarr_api_key }}"
     p_secrets: [apiKey]
+    # les secrets ne sont pas compares : si la cle de Radarr vient de changer, on renvoie
+    p_forcer: "{{ cles_api is changed }}"
 
 - name: Prowlarr - garder le resultat de l'application
   ansible.builtin.set_fact:
