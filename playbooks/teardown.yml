@@ -2,13 +2,44 @@
 # Arrete et supprime les conteneurs.
 # Par defaut les volumes sont gardes. Pour tout supprimer :
 #   ansible-playbook playbooks/teardown.yml -e keep_volumes=false
-# /data/flixy (medias) n'est jamais supprime.
-- name: Suppression de Flixy
-  hosts: app:media
+# /data/flixy (medias) et /srv/backups/flixy ne sont jamais supprimes.
+- name: Suppression de Flixy (vm-app)
+  hosts: app
   become: true
   vars:
     keep_volumes: true
   tasks:
-    - name: A faire - docker compose down
-      ansible.builtin.debug:
-        msg: "compose down sur {{ inventory_hostname }} (volumes {{ 'gardes' if keep_volumes | bool else 'supprimes' }})"
+    - name: Arreter les timers de sauvegarde
+      ansible.builtin.systemd_service:
+        name: flixy-backup.timer
+        state: stopped
+      failed_when: false
+
+    - name: Compose down (nginx puis Flixy)
+      community.docker.docker_compose_v2:
+        project_src: "{{ item }}"
+        state: absent
+        remove_volumes: "{{ not (keep_volumes | bool) }}"
+      loop:
+        - "{{ compose_dir }}/proxy"
+        - "{{ compose_dir }}"
+      failed_when: false
+
+- name: Suppression de la pile media (vm-media)
+  hosts: media
+  become: true
+  vars:
+    keep_volumes: true
+  tasks:
+    - name: Compose down
+      community.docker.docker_compose_v2:
+        project_src: "{{ media_compose_dir }}"
+        state: absent
+      failed_when: false
+
+    - name: Supprimer les configs Radarr / Prowlarr / qBittorrent (seulement si keep_volumes=false)
+      ansible.builtin.file:
+        path: "{{ media_compose_dir }}/{{ item }}"
+        state: absent
+      loop: [radarr, prowlarr, qbittorrent]
+      when: not (keep_volumes | bool)

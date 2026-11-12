@@ -18,8 +18,6 @@ flixy_builds:
     dockerfile: Dockerfile
     args: { APP_NAME: web, APP_VERSION: "{{ flixy_image_tag }}" }
 
-postgres_user: flixy
-postgres_db: flixy
 s3_region: us-east-1
 
 # id du profil qualite de Radarr, lu sur vm-media (fait par media_stack). 4 = HD-1080p

@@ -106,12 +106,15 @@ media_docker_ips:
 
 webhook_path: /v1/radarr/webhook
 minio_bucket: user.picture
+postgres_user: flixy
+postgres_db: flixy
 
 # Sauvegarde : un dossier par jeu, <backup_dir>/<backup_id>/ sur vm-media
 # (dump PostgreSQL + copie MinIO + SHA256SUMS + manifest.json)
 backup_dir: /srv/backups/flixy          # vm-media, hors de l'export NFS
 backup_staging_dir: /var/backups/flixy  # vm-app, preparation du jeu avant envoi
 backup_user: flixy-backup               # vm-media, compte limite a rsync (rrsync)
+backup_cle_ssh: /root/.ssh/flixy-backup # vm-app, cle pour l'envoi vers vm-media
 backup_id_format: "%Y%m%d-%H%M%S"       # backup_id = horodatage, ex. 20261024-030000
 backup_retention_days: 7                # on garde toujours au moins le dernier jeu complet
 backup_timer_oncalendar: "*-*-* 03:00:00"

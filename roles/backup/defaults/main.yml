@@ -1,3 +1,2 @@
 ---
-backup_cle_ssh: /root/.ssh/flixy-backup        # vm-app, cle pour l'envoi vers vm-media
 backup_retention_oncalendar: "*-*-* 04:00:00"  # vm-media, apres la sauvegarde de 3 h

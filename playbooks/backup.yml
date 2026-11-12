@@ -1,12 +1,15 @@
 ---
 # Sauvegarde a la main. Le timer quotidien du role backup lance le meme script.
 #   ansible-playbook playbooks/backup.yml --ask-vault-pass
+#   ansible-playbook playbooks/backup.yml -e backup_id=20261024-030000 --ask-vault-pass
 #
 # Un jeu = un dossier <backup_dir>/<backup_id>/ sur vm-media :
 #   postgres.dump   dump pg_dump -Fc
 #   minio/          copie du bucket a l'instant de la sauvegarde
+#   lignes.txt      nombre de lignes par table
+#   objets.txt      liste des objets MinIO (nom + taille)
 #   SHA256SUMS      sha256 de tous les fichiers du jeu
-#   manifest.json   id, date, tags et digests des images, refs du code, comptages
+#   manifest.json   id, date, tags et id des images, refs du code, comptages
 # Le manifest est ecrit en dernier : un dossier sans manifest.json est incomplet
 # et restore.yml ne le prend pas.
 
@@ -21,46 +24,45 @@
         backup_id: "{{ backup_id }}"
       run_once: true
 
-    - name: Afficher le jeu en cours
-      ansible.builtin.debug:
-        msg: "jeu {{ backup_id }} -> {{ media_ip }}:{{ backup_dir }}/{{ backup_id }}/"
+    - name: Lancer flixy-backup {{ backup_id }}
+      ansible.builtin.command: /usr/local/sbin/flixy-backup {{ backup_id }}
+      register: sortie_backup
+      changed_when: true
 
-    - name: A faire - 1. dossier de preparation
+    - name: Sortie du script
       ansible.builtin.debug:
-        msg: "mkdir -p {{ backup_staging_dir }}/{{ backup_id }}/minio (0700, root)"
+        var: sortie_backup.stdout_lines
 
-    - name: A faire - 2. pause des ecritures
-      ansible.builtin.debug:
-        msg: "compose stop {{ flixy_write_services | join(' ') }} (quelques secondes) pour que dump et objets soient pris au meme moment"
+- name: Controle du jeu sur vm-media
+  hosts: media
+  become: true
+  vars:
+    backup_id: "{{ hostvars[groups['app'][0]].backup_id }}"
+  tasks:
+    - name: Controle d'integrite (sha256sum -c)
+      ansible.builtin.command: sha256sum -c --quiet SHA256SUMS
+      args:
+        chdir: "{{ backup_dir }}/{{ backup_id }}"
+      changed_when: false
 
-    - name: A faire - 3. dump PostgreSQL
-      ansible.builtin.debug:
-        msg: "docker compose exec -T postgres pg_dump -Fc -U flixy flixy > {{ backup_id }}/postgres.dump + nb de lignes par table"
+    - name: Lire le manifest
+      ansible.builtin.slurp:
+        src: "{{ backup_dir }}/{{ backup_id }}/manifest.json"
+      register: manifest
 
-    - name: A faire - 4. copie MinIO dans le jeu
+    - name: Manifest du jeu (a garder dans tests/preuves/)
       ansible.builtin.debug:
-        msg: "conteneur {{ images.mc }} : mc mirror local/{{ minio_bucket }} /backup/minio (dossier du jeu, pas un miroir commun)"
-
-    - name: A faire - 5. relance des ecritures
-      ansible.builtin.debug:
-        msg: "compose start {{ flixy_write_services | join(' ') }}"
-
-    - name: A faire - 6. SHA256SUMS et manifest.json
-      ansible.builtin.debug:
-        msg: "sha256sum de tous les fichiers, puis manifest.json (backup_id, date, flixy_image_tag, digests, flixy_code_refs, nb objets)"
-
-    - name: A faire - 7. envoi sur vm-media
-      ansible.builtin.debug:
-        msg: "rsync -a {{ backup_id }}/ {{ media_ip }}:{{ backup_dir }}/{{ backup_id }}/ (manifest.json envoye en dernier), puis sha256sum -c cote vm-media"
-
-    - name: A faire - 8. menage du dossier de preparation
-      ansible.builtin.debug:
-        msg: "rm -rf {{ backup_staging_dir }}/{{ backup_id }} si l'envoi est OK"
+        msg: "{{ manifest.content | b64decode | from_json }}"
 
 - name: Retention sur vm-media
   hosts: media
   become: true
   tasks:
-    - name: A faire - purge des jeux de plus de {{ backup_retention_days }} jours
+    - name: Purge des jeux de plus de {{ backup_retention_days }} jours (on garde le dernier complet)
+      ansible.builtin.command: /usr/local/sbin/flixy-retention
+      register: retention
+      changed_when: "'supprime' in retention.stdout"
+
+    - name: Sortie de la retention
       ansible.builtin.debug:
-        msg: "find {{ backup_dir }} -mindepth 1 -maxdepth 1 -type d -mtime +{{ backup_retention_days }}, en gardant toujours le dernier jeu complet"
+        var: retention.stdout_lines
