@@ -1,0 +1,23 @@
+# Sauvegarde puis restauration - 12/11/2026 (heure de Paris)
+
+1. Donnees de preuve avant sauvegarde : table sae_preuve = (1, 'avant sauvegarde 12/11'), objet MinIO user.picture/sae-preuve.txt
+2. backup.yml -> jeu 20261112-132420 (manifest : manifest-20261112-132420.json)
+vm-app                     : ok=4    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+vm-media                   : ok=7    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+
+3. Donnees modifiees apres la sauvegarde : ligne 1 supprimee, ligne 2 ajoutee, objet MinIO supprime
+4. restore.yml -e backup_id=20261112-132420
+vm-app                     : ok=95   changed=12   unreachable=0    failed=0    skipped=20   rescued=0    ignored=0   
+vm-media                   : ok=90   changed=2    unreachable=0    failed=0    skipped=32   rescued=0    ignored=0   
+
+    "msg": "base et bucket identiques au jeu 20261112-132420"
+5. Etat apres restauration :
+sae_preuve :
+ id |         texte          
+----+------------------------
+  1 | avant sauvegarde 12/11
+(1 row)
+
+MinIO user.picture :
+[2026-11-12 12:27:26 UTC]    20B STANDARD sae-preuve.txt
+{"status":"ok"} <- /v1/health 200
