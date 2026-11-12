@@ -1,0 +1,45 @@
+---
+- name: Installer le client NFS
+  ansible.builtin.apt:
+    name: nfs-common
+    state: present
+
+- name: Point de montage
+  ansible.builtin.file:
+    path: "{{ data_path }}"
+    state: directory
+    mode: "0755"
+  # une fois monte, ce sont les droits de vm-media qui s'appliquent : on ne touche plus
+  when: not (ansible_facts.mounts | selectattr('mount', 'equalto', data_path) | list)
+
+- name: Montage NFS de {{ data_path }}
+  ansible.posix.mount:
+    path: "{{ data_path }}"
+    src: "{{ media_ip }}:{{ data_path }}"
+    fstype: nfs4
+    opts: "{{ nfs_mount_opts }}"
+    state: mounted
+
+# --- controles demandes : point de montage + ecriture avec l'uid des conteneurs ---
+- name: Controle - {{ data_path }} est bien un point de montage
+  ansible.builtin.command: mountpoint -q {{ data_path }}
+  changed_when: false
+
+- name: Controle - ecriture en uid {{ flixy_uid }} sur le partage
+  ansible.builtin.shell: |
+    set -e
+    f={{ data_path }}/.test-ecriture-$(hostname)
+    setpriv --reuid={{ flixy_uid }} --regid={{ flixy_gid }} --clear-groups touch "$f"
+    stat -c '%u:%g' "$f"
+    setpriv --reuid={{ flixy_uid }} --regid={{ flixy_gid }} --clear-groups rm -f "$f"
+  args:
+    executable: /bin/bash
+  register: test_ecriture
+  changed_when: false
+  failed_when: test_ecriture.rc != 0 or test_ecriture.stdout != (flixy_uid | string ~ ':' ~ flixy_gid | string)
+
+- name: Controle - les sous-dossiers sont visibles
+  ansible.builtin.stat:
+    path: "{{ data_path }}/films"
+  register: films
+  failed_when: not films.stat.exists or not films.stat.isdir

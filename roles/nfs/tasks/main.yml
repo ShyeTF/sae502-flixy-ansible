@@ -1,17 +1,10 @@
 ---
 # tasks file for nfs
-- name: Creer le dossier des medias
-  ansible.builtin.file:
-    path: "{{ data_path }}"
-    state: directory
-    owner: "{{ flixy_uid }}"
-    group: "{{ flixy_gid }}"
-    mode: "{{ data_mode }}"
-  become: true
+# Le meme role sert aux deux VM : export sur vm-media, montage sur vm-app.
+- name: Partie serveur (vm-media)
+  ansible.builtin.include_tasks: serveur.yml
+  when: "'media' in group_names"
 
-- name: A faire
-  ansible.builtin.debug:
-    msg: >-
-      {{ 'nfs : export NFSv4 vers ' ~ nfs_export_client ~ ' (' ~ nfs_export_options ~ '), UFW 2049 depuis vm-app'
-         if 'media' in group_names else
-         'nfs : ansible.posix.mount ' ~ data_path ~ ' (' ~ nfs_mount_opts ~ '), test mountpoint + ecriture uid ' ~ flixy_uid }}
+- name: Partie client (vm-app)
+  ansible.builtin.include_tasks: client.yml
+  when: "'app' in group_names"

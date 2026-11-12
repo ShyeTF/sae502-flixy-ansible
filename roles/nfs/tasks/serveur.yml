@@ -1,0 +1,55 @@
+---
+- name: Installer le serveur NFS
+  ansible.builtin.apt:
+    name: nfs-kernel-server
+    state: present
+
+- name: Dossier des medias
+  ansible.builtin.file:
+    path: "{{ data_path }}"
+    state: directory
+    owner: "{{ flixy_uid }}"
+    group: "{{ flixy_gid }}"
+    mode: "{{ data_mode }}"
+
+- name: Sous-dossiers (films, downloads, import, demo)
+  ansible.builtin.file:
+    path: "{{ data_path }}/{{ item }}"
+    state: directory
+    owner: "{{ flixy_uid }}"
+    group: "{{ flixy_gid }}"
+    mode: "{{ data_mode }}"
+  loop: "{{ nfs_sous_dossiers }}"
+
+- name: Export NFSv4 vers vm-app uniquement
+  ansible.builtin.copy:
+    dest: /etc/exports.d/flixy.exports
+    content: |
+      # pose par Ansible (role nfs)
+      {{ data_path }} {{ nfs_export_client }}({{ nfs_export_options }})
+    mode: "0644"
+  notify: Recharger les exports
+
+- name: Serveur NFS demarre
+  ansible.builtin.systemd_service:
+    name: nfs-server
+    state: started
+    enabled: true
+
+- name: UFW - NFS depuis vm-app seulement
+  community.general.ufw:
+    rule: allow
+    port: "{{ ports.nfs | string }}"
+    proto: tcp
+    from_ip: "{{ app_ip }}"
+    comment: nfs vm-app
+
+# appliquer l'export tout de suite (le client monte juste apres, dans le play suivant)
+- name: Appliquer les handlers (exportfs)
+  ansible.builtin.meta: flush_handlers
+
+- name: Controle - l'export est actif
+  ansible.builtin.command: exportfs -v
+  register: exports
+  changed_when: false
+  failed_when: data_path not in exports.stdout
