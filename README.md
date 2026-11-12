@@ -21,8 +21,11 @@ Périmètre : films uniquement (Radarr). Pas de Sonarr, pas de GPU, pas de tunne
 
 | VM | IP | OS | Conteneurs |
 |---|---|---|---|
-| vm-app | 192.168.1.50/24 | Debian 13 (trixie) | nginx, web, api, migrator, postgres, valkey, minio |
-| vm-media | 192.168.1.51/24 | Debian 13 (trixie) | radarr, prowlarr, qbittorrent |
+| vm-app | `app_ip` (à choisir, voir plus bas) | Debian 13 (trixie) | nginx, web, api, migrator, postgres, valkey, minio |
+| vm-media | `media_ip` (à choisir) | Debian 13 (trixie) | radarr, prowlarr, qbittorrent |
+
+> Les IP sont des variables (`inventory/group_vars/all/main.yml`). 192.168.1.50, prévue au
+> départ pour vm-app, est déjà utilisée par un switch sur le LAN : elle est à changer.
 
 - Passerelle 192.168.1.1, IP fixes dans l'inventaire.
 - Le Mac est le nœud de contrôle Ansible (SSH par clé, utilisateur `deploy`).
@@ -30,9 +33,9 @@ Périmètre : films uniquement (Radarr). Pas de Sonarr, pas de GPU, pas de tunne
   minio et mc RELEASE.2026-08-04, nginx 1.30.6, radarr 6.4.4, prowlarr 2.6.5,
   qbittorrent 5.2.4. Disponibilité vérifiée le 24/10/2026, tags et digests dans
   `docs/images.md`.
-- web, api et migrator sont construites par la CI de mon GitLab avec un tag fixe pour la
-  SAÉ (`flixy_image_tag` = `sae-1.0`, pas encore construit). Jamais de `latest`. Les
-  commits utilisés seront notés dans `docs/images.md` et `flixy_code_refs`.
+- web, api et migrator sont construites par Ansible sur vm-app, depuis un clone en lecture
+  seule du code Flixy au commit fixé (tag local `sae-1.0`). Rien n'est écrit sur le GitLab
+  ni sur le registre de Flixy. Commits et ids des images dans `docs/images.md`.
 
 ## Flux
 
@@ -53,7 +56,9 @@ vm-app :
 
 vm-media :
 - seul Radarr publie le 7878. Comme Docker contourne UFW, il est filtré dans la chaîne
-  `DOCKER-USER` (192.168.1.50 seulement), règles persistantes
+  `DOCKER-USER` (vm-app seulement). Les règles sont remises par le service
+  `flixy-docker-user` à chaque démarrage de Docker (sur Debian 13, `iptables-persistent`
+  est incompatible avec `ufw`)
 - Prowlarr et qBittorrent ne sont pas publiés. Pour leurs WebUI je passe par un tunnel
   SSH, par ex. `ssh -L 9696:<ip conteneur>:9696 deploy@192.168.1.51`
 
@@ -136,8 +141,9 @@ tests/       README.md (procédures), preuves/ (vraies sorties, sans secrets)
 Ordre des rôles dans `deploy.yml` : common, docker, nfs (vm-media puis vm-app),
 media_stack, flixy_app, reverse_proxy, backup.
 
-Les rôles ont été créés avec `ansible-galaxy init`. Pour l'instant ce n'est que le
-squelette, avec une tâche de départ par rôle.
+Les rôles ont été créés avec `ansible-galaxy init`, puis remplis (détail dans le README
+de chaque rôle). Vérifiés avec `ansible-playbook --syntax-check` et `ansible-lint`
+(profil production), pas encore joués sur les VM.
 
 ## Lancement
 
@@ -148,6 +154,9 @@ ansible-galaxy collection install -r requirements.yml
 cp inventory/hosts.example.yml inventory/hosts.yml
 cp inventory/group_vars/all/vault.example.yml inventory/group_vars/all/vault.yml
 ansible-vault encrypt inventory/group_vars/all/vault.yml
+
+# 1er passage sur VM neuves : avec le compte cree a l'installation
+# ansible-playbook playbooks/deploy.yml -e ansible_user=<compte> -k -K --ask-vault-pass
 
 ansible all -m ping
 ansible-playbook playbooks/deploy.yml --syntax-check
