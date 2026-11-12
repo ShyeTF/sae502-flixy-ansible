@@ -23,6 +23,6 @@
     body_format: json
     body: "{{ c_get.json | combine(c_valeurs) | combine(c_secrets | default({})) }}"
     status_code: [200, 202]
-  when: (c_get.json | combine(c_valeurs)) != c_get.json
+  when: (c_get.json | combine(c_valeurs)) != c_get.json or (arr_appliquer_secrets | bool)
   changed_when: true
   no_log: true

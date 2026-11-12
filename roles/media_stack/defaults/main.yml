@@ -64,3 +64,9 @@ prowlarr_app_sync_level: fullSync
 # Tant que la liste est vide, le controle final previent mais n'echoue pas :
 # seule la demo de secours (import + webhook) est possible.
 prowlarr_indexers: []
+
+# Apres un changement de mot de passe dans Vault (admin Radarr/Prowlarr, qBittorrent),
+# les secrets ne sont pas compares (masques par les API). On les renvoie une fois avec :
+#   ansible-playbook playbooks/deploy.yml -e arr_appliquer_secrets=true
+# (la cle API, elle, est toujours imposee depuis Vault)
+arr_appliquer_secrets: false
