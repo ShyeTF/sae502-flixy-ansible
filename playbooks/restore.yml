@@ -4,10 +4,11 @@
 #   ansible-playbook playbooks/restore.yml --ask-vault-pass        -> dernier jeu complet
 #
 # Ordre : verif du jeu > deploy en maintenance > restauration > verif > relance.
-# Tant que la verif n'est pas OK, l'api, le worker et le migrator restent arretes,
+# Tant que la verif n'est pas OK, l'api (et donc le worker) et le migrator restent arretes,
 # nginx renvoie 503 et Radarr est arrete (pas d'import, donc pas de webhook perdu).
 # Les configs ne sont pas sauvegardees : deploy.yml les recree depuis l'inventaire et Vault.
 # Les medias ne sont ni sauvegardes ni touches.
+# Si quelque chose rate en route, le verrou reste pose (voulu) : on corrige et on relance.
 
 - name: 1. Choix et controle du jeu sur vm-media
   hosts: media
@@ -15,17 +16,44 @@
   vars:
     backup_id: latest
   tasks:
-    - name: A faire - resoudre backup_id
-      ansible.builtin.debug:
-        msg: "{{ backup_id }} (latest = dernier dossier de {{ backup_dir }} qui contient un manifest.json)"
+    - name: Jeux complets disponibles (dossiers avec un manifest.json)
+      ansible.builtin.find:
+        paths: "{{ backup_dir }}"
+        patterns: manifest.json
+        recurse: true
+        depth: 2
+      register: manifests
 
-    - name: Garder l'id choisi pour les plays suivants
+    - name: Resoudre backup_id ({{ backup_id }})
       ansible.builtin.set_fact:
-        restore_id: "{{ backup_id }}"
+        restore_id: >-
+          {{ (manifests.files | map(attribute='path') | map('dirname') | map('basename') | sort | last)
+             if backup_id == 'latest' else backup_id }}
 
-    - name: A faire - controle d'integrite
+    - name: Le jeu existe et est complet
+      ansible.builtin.stat:
+        path: "{{ backup_dir }}/{{ restore_id }}/manifest.json"
+      register: manifest_stat
+      failed_when: not manifest_stat.stat.exists
+
+    - name: Controle d'integrite, sinon on s'arrete avant de toucher a quoi que ce soit
+      ansible.builtin.command: sha256sum -c --quiet SHA256SUMS
+      args:
+        chdir: "{{ backup_dir }}/{{ restore_id }}"
+      changed_when: false
+
+    - name: Lire le manifest
+      ansible.builtin.slurp:
+        src: "{{ backup_dir }}/{{ restore_id }}/manifest.json"
+      register: manifest_brut
+
+    - name: Garder le manifest pour la suite
+      ansible.builtin.set_fact:
+        restore_manifest: "{{ manifest_brut.content | b64decode | from_json }}"
+
+    - name: Jeu choisi
       ansible.builtin.debug:
-        msg: "cd {{ backup_dir }}/<backup_id> && sha256sum -c SHA256SUMS, sinon on s'arrete avant de toucher a quoi que ce soit"
+        msg: "restauration du jeu {{ restore_id }} du {{ restore_manifest.date }}"
 
 - name: 2. Verrou de restauration sur vm-app
   hosts: app
@@ -52,65 +80,159 @@
   hosts: media
   become: true
   tasks:
-    - name: A faire - stop radarr
-      ansible.builtin.debug:
-        msg: "docker compose stop radarr (qBittorrent continue, les imports reprendront a la relance)"
+    - name: Stop radarr (qBittorrent continue, les imports reprendront a la relance)
+      community.docker.docker_compose_v2:
+        project_src: "{{ media_compose_dir }}"
+        services: [radarr]
+        state: stopped
 
 - name: 5. Restauration des donnees et verification
   hosts: app
   become: true
   vars:
     restore_id: "{{ hostvars[groups['media'][0]].restore_id }}"
+    manifest: "{{ hostvars[groups['media'][0]].restore_manifest }}"
+    restore_dir: "{{ backup_staging_dir }}/restore-{{ restore_id }}"
+    restore_allow_tag_change: false
+    sql_lignes: >-
+      select table_name,
+      (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from public.%I', table_name), false, true, '')))[1]::text
+      from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE' order by 1
   tasks:
-    - name: A faire - ecritures arretees
-      ansible.builtin.debug:
-        msg: "assert : {{ flixy_write_services | join(', ') }} arretes, nginx en 503 sur / et {{ webhook_path }}"
+    - name: Services lances
+      ansible.builtin.command: docker compose ps --status running --services
+      args:
+        chdir: "{{ compose_dir }}"
+      register: services_lances
+      changed_when: false
 
-    - name: A faire - recuperer le jeu
-      ansible.builtin.debug:
-        msg: "rsync {{ media_ip }}:{{ backup_dir }}/{{ restore_id }}/ {{ backup_staging_dir }}/restore/ puis sha256sum -c SHA256SUMS"
+    - name: Les ecritures sont bien arretees
+      ansible.builtin.assert:
+        that: flixy_write_services | intersect(services_lances.stdout_lines) | length == 0
+        fail_msg: "api ou migrator encore lance, on ne restaure pas"
 
-    - name: A faire - comparer les tags d'images
-      ansible.builtin.debug:
-        msg: "flixy_image_tag du manifest == {{ flixy_image_tag }}, sinon stop (forcer avec -e restore_allow_tag_change=true)"
+    - name: nginx est bien en maintenance (503)
+      ansible.builtin.uri:
+        url: "https://127.0.0.1/"
+        validate_certs: false
+        status_code: [503]
 
-    - name: A faire - PostgreSQL
-      ansible.builtin.debug:
-        msg: "dropdb + createdb flixy, pg_restore --no-owner --exit-on-error postgres.dump"
+    - name: Comparer le tag d'images avec celui du manifest
+      ansible.builtin.assert:
+        that: manifest.flixy_image_tag == flixy_image_tag or restore_allow_tag_change | bool
+        fail_msg: >-
+          jeu fait avec {{ manifest.flixy_image_tag }}, deploiement en {{ flixy_image_tag }}.
+          Forcer avec -e restore_allow_tag_change=true (le migrator appliquera les migrations manquantes)
 
-    - name: A faire - MinIO
-      ansible.builtin.debug:
-        msg: "mc mirror --overwrite --remove minio/ local/{{ minio_bucket }} : le bucket devient exactement celui du jeu"
+    - name: Recuperer le jeu depuis vm-media
+      ansible.builtin.command: >-
+        rsync -a --delete -e "ssh -i {{ backup_cle_ssh }} -o BatchMode=yes"
+        {{ backup_user }}@{{ media_ip }}:{{ restore_id }}/ {{ restore_dir }}/
+      changed_when: true
 
-    - name: A faire - verification avant relance
-      ansible.builtin.debug:
-        msg: "nb de lignes par table et liste des objets (nom + taille) identiques au manifest, sinon fail et on reste en maintenance"
+    - name: Controle d'integrite apres copie
+      ansible.builtin.command: sha256sum -c --quiet SHA256SUMS
+      args:
+        chdir: "{{ restore_dir }}"
+      changed_when: false
+
+    - name: PostgreSQL - base vide puis pg_restore
+      ansible.builtin.shell: |
+        set -euo pipefail
+        docker compose exec -T postgres dropdb -U {{ postgres_user }} --if-exists --force {{ postgres_db }}
+        docker compose exec -T postgres createdb -U {{ postgres_user }} -O {{ postgres_user }} {{ postgres_db }}
+        docker compose exec -T postgres pg_restore -U {{ postgres_user }} -d {{ postgres_db }} --no-owner --exit-on-error < {{ restore_dir }}/postgres.dump
+      args:
+        chdir: "{{ compose_dir }}"
+        executable: /bin/bash
+      changed_when: true
+
+    - name: MinIO - le bucket redevient exactement celui du jeu
+      ansible.builtin.command: >-
+        docker run --rm --network flixy_interne --env-file {{ compose_dir }}/mc.env
+        -v {{ restore_dir }}/minio:/backup:ro {{ images.mc }}
+        mirror --quiet --overwrite --remove /backup local/{{ minio_bucket }}
+      changed_when: true
+
+    # --- verification avant relance ---
+    - name: Verif - lignes par table apres restauration
+      ansible.builtin.command:
+        cmd: docker compose exec -T postgres psql -U {{ postgres_user }} -d {{ postgres_db }} -At -F ' ' -c "{{ sql_lignes }}"
+        chdir: "{{ compose_dir }}"
+      register: lignes_apres
+      changed_when: false
+
+    - name: Verif - objets MinIO apres restauration
+      ansible.builtin.command: >-
+        docker run --rm --network flixy_interne --env-file {{ compose_dir }}/mc.env
+        {{ images.mc }} ls --recursive --json local/{{ minio_bucket }}
+      register: objets_apres
+      changed_when: false
+
+    - name: Verif - objets attendus (objets.txt du jeu)
+      ansible.builtin.slurp:
+        src: "{{ restore_dir }}/objets.txt"
+      register: objets_jeu
+
+    - name: Verif - comparaison avec le manifest (sinon on reste en maintenance)
+      ansible.builtin.assert:
+        that:
+          - lignes_obtenues == manifest.lignes_par_table
+          - objets_obtenus == objets_attendus
+        fail_msg: "la base ou le bucket ne correspond pas au jeu {{ restore_id }} : on reste en maintenance"
+        success_msg: "base et bucket identiques au jeu {{ restore_id }}"
+      vars:
+        lignes_obtenues: >-
+          {{ dict(lignes_apres.stdout_lines | map('split', ' ') | map('first') |
+             zip(lignes_apres.stdout_lines | map('split', ' ') | map('last') | map('int'))) }}
+        objets_obtenus: >-
+          {{ objets_apres.stdout_lines | map('from_json') | selectattr('type', 'equalto', 'file')
+             | map(attribute='key') | zip(objets_apres.stdout_lines | map('from_json')
+             | selectattr('type', 'equalto', 'file') | map(attribute='size')) | map('join', ' ') | sort }}
+        objets_attendus: "{{ objets_jeu.content | b64decode | split('\n') | select | sort }}"
 
 - name: 6. Relance dans l'ordre
   hosts: app
   become: true
   tasks:
-    - name: A faire - migrator
-      ansible.builtin.debug:
-        msg: "compose run --rm migrator (rien a appliquer si meme tag que le jeu)"
+    - name: Migrator puis api (+ worker), attente du healthcheck
+      ansible.builtin.include_role:
+        name: flixy_app
+        tasks_from: ecrivains.yml
 
-    - name: A faire - api (+ worker)
-      ansible.builtin.debug:
-        msg: "compose up -d api, attente de https://{{ app_ip }}{{ flixy_health_path }} en 200"
+    - name: Sortie de maintenance de nginx
+      ansible.builtin.include_role:
+        name: reverse_proxy
 
-    - name: A faire - sortie de maintenance nginx
-      ansible.builtin.debug:
-        msg: "template nginx normal + reload"
+    - name: Appliquer le reload de nginx
+      ansible.builtin.meta: flush_handlers
+
+    - name: Le site repond de nouveau (route de sante)
+      ansible.builtin.uri:
+        url: "https://127.0.0.1{{ flixy_health_path }}"
+        validate_certs: false
+        status_code: [200]
+      register: sante
+      until: sante.status == 200
+      retries: 12
+      delay: 5
 
     - name: Retirer le verrou
       ansible.builtin.file:
         path: "{{ restore_lock_file }}"
         state: absent
 
+    - name: Menage du dossier de restauration
+      ansible.builtin.file:
+        path: "{{ backup_staging_dir }}/restore-{{ hostvars[groups['media'][0]].restore_id }}"
+        state: absent
+
 - name: 7. Relance de Radarr
   hosts: media
   become: true
   tasks:
-    - name: A faire - start radarr
-      ansible.builtin.debug:
-        msg: "docker compose start radarr, les imports en attente partent et appellent le webhook"
+    - name: Start radarr (les imports en attente partent et appellent le webhook)
+      community.docker.docker_compose_v2:
+        project_src: "{{ media_compose_dir }}"
+        services: [radarr]
+        state: present
