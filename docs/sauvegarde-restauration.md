@@ -24,6 +24,8 @@ Sur vm-media, dans `/srv/backups/flixy/<backup_id>/` :
 ```
 postgres.dump    dump PostgreSQL (format custom)
 minio/           copie du bucket user.picture à ce moment-là
+lignes.txt       nombre de lignes par table (pour la vérification après restauration)
+objets.txt       liste des objets du bucket (nom + taille)
 SHA256SUMS       sha256 de tous les fichiers du jeu
 manifest.json    description du jeu, écrit en dernier
 ```

@@ -57,8 +57,9 @@ Procédure (détail dans `docs/sauvegarde-restauration.md`) :
 
 Procédure et checklist dans `docs/secours.md`, sorties dans `tests/preuves/secours/`.
 
-## 5. Syntaxe
+## 5. Syntaxe et lint
 
 ```bash
 for p in playbooks/*.yml; do ansible-playbook -i inventory/hosts.example.yml "$p" --syntax-check; done
+ansible-lint      # config dans .ansible-lint, profil production
 ```
