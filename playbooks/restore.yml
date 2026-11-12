@@ -111,7 +111,7 @@
         that: flixy_write_services | intersect(services_lances.stdout_lines) | length == 0
         fail_msg: "api ou migrator encore lance, on ne restaure pas"
 
-    - name: nginx est bien en maintenance (503)
+    - name: Verifier que nginx est en maintenance (503)
       ansible.builtin.uri:
         url: "https://127.0.0.1/"
         validate_certs: false
@@ -124,7 +124,8 @@
           jeu fait avec {{ manifest.flixy_image_tag }}, deploiement en {{ flixy_image_tag }}.
           Forcer avec -e restore_allow_tag_change=true (le migrator appliquera les migrations manquantes)
 
-    - name: Recuperer le jeu depuis vm-media
+    # rsync avec la cle limitee de vm-app (le module synchronize passe par le noeud de controle)
+    - name: Recuperer le jeu depuis vm-media  # noqa: command-instead-of-module
       ansible.builtin.command: >-
         rsync -a --delete -e "ssh -i {{ backup_cle_ssh }} -o BatchMode=yes"
         {{ backup_user }}@{{ media_ip }}:{{ restore_id }}/ {{ restore_dir }}/

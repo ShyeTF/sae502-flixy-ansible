@@ -13,7 +13,7 @@
 
 - name: Controle - ranger les resultats
   ansible.builtin.set_fact:
-    etat_radarr: "{{ dict([ 'rootfolder', 'qualityprofile', 'downloadclient', 'indexer', 'notification'] | zip(etat.results | map(attribute='json'))) }}"
+    etat_radarr: "{{ dict(['rootfolder', 'qualityprofile', 'downloadclient', 'indexer', 'notification'] | zip(etat.results | map(attribute='json'))) }}"
   no_log: true
 
 - name: Controle - le client qBittorrent repond (test de Radarr)
@@ -53,4 +53,7 @@
       - "client : {{ etat_radarr.downloadclient | map(attribute='name') | join(', ') }} (test OK)"
       - "indexeurs dans Radarr : {{ etat_radarr.indexer | map(attribute='name') | join(', ') | default('aucun', true) }}"
       - "webhook : {{ etat_radarr.notification | map(attribute='name') | join(', ') }} -> {{ radarr_webhook.url }}"
-      - "{{ 'ATTENTION : prowlarr_indexers est vide, seule la demo de secours est possible' if prowlarr_indexers | length == 0 else 'indexeurs declares : ' ~ (prowlarr_indexers | map(attribute='name') | join(', ')) }}"
+      - >-
+        {{ 'ATTENTION : prowlarr_indexers est vide, seule la demo de secours est possible'
+           if prowlarr_indexers | length == 0
+           else 'indexeurs declares : ' ~ (prowlarr_indexers | map(attribute='name') | join(', ')) }}

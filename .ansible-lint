@@ -1,0 +1,11 @@
+---
+# Config ansible-lint du projet
+profile: production
+offline: true
+exclude_paths:
+  - .src/
+  - inventory/group_vars/all/vault.yml
+skip_list:
+  # les variables des roles gardent les noms des docs (radarr_root_folder, proxy_dir...)
+  # et sont partagees entre roles et playbooks, pas de prefixe par role
+  - var-naming[no-role-prefix]

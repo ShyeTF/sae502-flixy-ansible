@@ -1,3 +1,2 @@
-#SPDX-License-Identifier: MIT-0
 ---
-# vars file for roles/nfs
+# vars file for nfs : rien ici, les valeurs sont dans defaults/ et group_vars/

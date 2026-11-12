@@ -1,6 +1,25 @@
 ---
 # Deploiement complet de Flixy sur les deux VM vierges.
-# Ordre : common > docker > nfs > media_stack > flixy_app > reverse_proxy > backup
+#   ansible-playbook playbooks/deploy.yml --ask-vault-pass
+# Ordre : common > docker > nfs (vm-media puis vm-app) > media_stack > flixy_app
+#         > reverse_proxy > backup
+# Lance deux fois de suite, le 2e passage doit finir en changed=0.
+
+- name: Verifications avant de commencer
+  hosts: app:media
+  gather_facts: false
+  tasks:
+    - name: Le vault est charge et ne contient plus les valeurs d'exemple
+      ansible.builtin.assert:
+        that:
+          - vault_postgres_password is defined
+          - "'changeme' not in vault_postgres_password"
+          - vault_radarr_api_key != '00000000000000000000000000000000'
+          - vault_jwt_secret | length >= 256
+        fail_msg: "Creer inventory/group_vars/all/vault.yml a partir de vault.example.yml (vraies valeurs de test) et le chiffrer"
+        quiet: true
+      no_log: true
+      run_once: true  # noqa: run-once[task] (strategie linear)
 
 - name: Base systeme et Docker sur les deux VM
   hosts: app:media

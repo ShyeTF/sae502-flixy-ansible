@@ -40,7 +40,7 @@
     mode: "0755"
   when: "'app' in group_names"
 
-- name: Drop-in RequiresMountsFor={{ data_path }} (vm-app)
+- name: Drop-in RequiresMountsFor sur vm-app, {{ data_path }}
   ansible.builtin.copy:
     dest: /etc/systemd/system/docker.service.d/flixy-nfs.conf
     content: |

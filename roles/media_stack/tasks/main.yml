@@ -17,7 +17,7 @@
 # force: false -> poses une seule fois. Radarr, Prowlarr et qBittorrent reecrivent
 # eux-memes ces fichiers ensuite : si on les forcait, chaque passage serait "changed".
 # Tout le reste de l'etat est gere par leur API (taches suivantes).
-- name: config.xml de Radarr et Prowlarr (cle API depuis Vault)
+- name: Fichiers config.xml de Radarr et Prowlarr (cle API depuis Vault)
   ansible.builtin.template:
     src: arr-config.xml.j2
     dest: "{{ media_compose_dir }}/{{ item.dossier }}/config.xml"
@@ -51,7 +51,7 @@
   changed_when: false
   no_log: true
 
-- name: qBittorrent.conf (categorie et mot de passe)
+- name: Fichier qBittorrent.conf (chemin et mot de passe)
   ansible.builtin.template:
     src: qBittorrent.conf.j2
     dest: "{{ media_compose_dir }}/qbittorrent/qBittorrent/qBittorrent.conf"

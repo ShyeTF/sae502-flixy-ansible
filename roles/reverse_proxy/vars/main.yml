@@ -1,3 +1,2 @@
-#SPDX-License-Identifier: MIT-0
 ---
-# vars file for roles/reverse_proxy
+# vars file for reverse_proxy : rien ici, les valeurs sont dans defaults/ et group_vars/

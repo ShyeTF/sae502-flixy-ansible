@@ -13,7 +13,7 @@
   ansible.builtin.include_tasks: images.yml
 
 # --- verif du NFS avant tout demarrage (l'api lit les films sur le partage) ---
-- name: Verif NFS - {{ data_path }} est monte
+- name: Verif NFS - le partage est monte sur {{ data_path }}
   ansible.builtin.command: mountpoint -q {{ data_path }}
   changed_when: false
 
@@ -50,7 +50,7 @@
     wait: true
     wait_timeout: 180
 
-- name: Bucket MinIO {{ minio_bucket }} existe ?
+- name: Le bucket MinIO existe deja ? {{ minio_bucket }}
   ansible.builtin.command: >-
     docker run --rm --network flixy_interne --env-file {{ compose_dir }}/mc.env
     {{ images.mc }} ls local/{{ minio_bucket }}

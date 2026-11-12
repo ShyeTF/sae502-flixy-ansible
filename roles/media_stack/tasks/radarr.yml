@@ -38,7 +38,7 @@
   changed_when: false
   no_log: true
 
-- name: Radarr - recreer le profil {{ radarr_quality_profile }} s'il manque
+- name: Radarr - recreer le profil qualite s'il manque, {{ radarr_quality_profile }}
   when: radarr_quality_profile not in (profils.json | map(attribute='name') | list)
   block:
     - name: Radarr - modele de profil

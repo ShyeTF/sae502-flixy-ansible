@@ -16,7 +16,8 @@
   run_once: true
   become: false
 
-- name: Code Flixy - archive du commit (noeud de controle)
+# git archive : pas d'equivalent dans le module git
+- name: Code Flixy - archive du commit (noeud de controle)  # noqa: command-instead-of-module
   ansible.builtin.command:
     cmd: git archive --format=tar.gz -o ../{{ item.key }}-{{ item.value.version }}.tar.gz {{ item.value.version }}
     chdir: "{{ flixy_src_local }}/{{ item.key }}"

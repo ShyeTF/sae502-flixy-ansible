@@ -23,7 +23,7 @@
   register: cle_backup
   when: "'app' in group_names"
 
-- name: vm-media dans les known_hosts de root (vm-app)
+- name: Ajouter vm-media aux known_hosts de root (vm-app)
   ansible.builtin.known_hosts:
     path: /root/.ssh/known_hosts
     name: "{{ media_ip }}"
@@ -31,7 +31,7 @@
   when: "'app' in group_names"
 
 # ===== vm-media : compte limite a rsync dans le dossier des jeux =====
-- name: Utilisateur {{ backup_user }} (vm-media)
+- name: Utilisateur de sauvegarde sur vm-media, {{ backup_user }}
   ansible.builtin.user:
     name: "{{ backup_user }}"
     system: true

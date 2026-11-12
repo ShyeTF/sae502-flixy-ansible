@@ -1,3 +1,2 @@
-#SPDX-License-Identifier: MIT-0
 ---
-# vars file for roles/flixy_app
+# vars file for flixy_app : rien ici, les valeurs sont dans defaults/ et group_vars/

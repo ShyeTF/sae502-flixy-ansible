@@ -22,7 +22,7 @@
     - name: Figer le backup_id pour tout le playbook
       ansible.builtin.set_fact:
         backup_id: "{{ backup_id }}"
-      run_once: true
+      run_once: true  # noqa: run-once[task] (strategie linear)
 
     - name: Lancer flixy-backup {{ backup_id }}
       ansible.builtin.command: /usr/local/sbin/flixy-backup {{ backup_id }}
@@ -58,7 +58,7 @@
   hosts: media
   become: true
   tasks:
-    - name: Purge des jeux de plus de {{ backup_retention_days }} jours (on garde le dernier complet)
+    - name: Purge des vieux jeux, le dernier jeu complet est toujours garde
       ansible.builtin.command: /usr/local/sbin/flixy-retention
       register: retention
       changed_when: "'supprime' in retention.stdout"

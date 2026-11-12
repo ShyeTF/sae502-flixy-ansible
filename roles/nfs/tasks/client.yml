@@ -21,11 +21,11 @@
     state: mounted
 
 # --- controles demandes : point de montage + ecriture avec l'uid des conteneurs ---
-- name: Controle - {{ data_path }} est bien un point de montage
+- name: Controle - point de montage {{ data_path }}
   ansible.builtin.command: mountpoint -q {{ data_path }}
   changed_when: false
 
-- name: Controle - ecriture en uid {{ flixy_uid }} sur le partage
+- name: Controle - ecriture sur le partage avec l'uid {{ flixy_uid }}
   ansible.builtin.shell: |
     set -e
     f={{ data_path }}/.test-ecriture-$(hostname)

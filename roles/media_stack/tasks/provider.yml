@@ -10,7 +10,7 @@
 #   p_fields                   champs de la liste "fields" (name/value)
 #   p_secrets                  noms des fields masques dans le GET, non compares
 #   p_query                    ex. "?forceSave=true"
-- name: "{{ p_endpoint }} - liste actuelle"
+- name: "Liste actuelle de {{ p_endpoint }}"
   ansible.builtin.uri:
     url: "{{ p_api }}/{{ p_endpoint }}"
     headers:
@@ -20,12 +20,12 @@
   changed_when: false
   no_log: true
 
-- name: "{{ p_endpoint }} - element {{ p_nom }}"
+- name: "Recherche de l'element {{ p_nom }}"
   ansible.builtin.set_fact:
     p_actuel: "{{ p_liste.json | selectattr('name', 'equalto', p_nom) | first | default({}) }}"
   no_log: true
 
-- name: "{{ p_endpoint }} - modele (schema) si absent"
+- name: "Modele (schema) si absent, {{ p_endpoint }}"
   ansible.builtin.uri:
     url: "{{ p_api }}/{{ p_endpoint }}/schema"
     headers:
@@ -36,7 +36,7 @@
   when: p_actuel == {}
   no_log: true
 
-- name: "{{ p_endpoint }} - base de travail"
+- name: "Base de travail pour {{ p_nom }}"
   ansible.builtin.set_fact:
     p_base: >-
       {{ p_actuel if p_actuel != {} else
@@ -44,7 +44,7 @@
   no_log: true
 
 # fields voulus en liste name/value, fusionnes par nom avec ceux de la base
-- name: "{{ p_endpoint }} - corps de la requete"
+- name: "Corps de la requete pour {{ p_nom }}"
   ansible.builtin.set_fact:
     p_corps: >-
       {{ p_base | combine(p_champs | default({})) | combine({'name': p_nom,
@@ -57,7 +57,7 @@
       {{ p_fields | default({}) | dict2items | rejectattr('key', 'in', p_secrets | default([])) | items2dict }}
   no_log: true
 
-- name: "{{ p_endpoint }} - creer {{ p_nom }}"
+- name: "Creation si absent, {{ p_nom }}"
   ansible.builtin.uri:
     url: "{{ p_api }}/{{ p_endpoint }}{{ p_query | default('') }}"
     method: POST
@@ -71,7 +71,7 @@
   register: p_post
   no_log: true
 
-- name: "{{ p_endpoint }} - modifier {{ p_nom }} si different"
+- name: "Modification si different, {{ p_nom }}"
   ansible.builtin.uri:
     url: "{{ p_api }}/{{ p_endpoint }}/{{ p_actuel.id }}{{ p_query | default('') }}"
     method: PUT
@@ -88,6 +88,6 @@
   register: p_put
   no_log: true
 
-- name: "{{ p_endpoint }} - noter s'il y a eu un changement"
+- name: "Noter s'il y a eu un changement sur {{ p_nom }}"
   ansible.builtin.set_fact:
     p_a_change: "{{ (p_post is changed) or (p_put is changed) }}"
