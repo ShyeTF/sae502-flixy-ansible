@@ -1,0 +1,42 @@
+---
+# Le migrator applique les migrations manquantes. Pour l'idempotence on compte les
+# lignes de drizzle.migrations avant et apres : "changed" seulement si ca a bouge.
+- name: Migrations deja appliquees (avant)
+  ansible.builtin.command: >-
+    docker compose exec -T postgres psql -U {{ postgres_user }} -d {{ postgres_db }} -Atc
+    "select count(*) from drizzle.migrations"
+  args:
+    chdir: "{{ compose_dir }}"
+  register: migr_avant
+  changed_when: false
+  failed_when: false
+
+- name: Lancer le migrator
+  ansible.builtin.command: docker compose run --rm migrator
+  args:
+    chdir: "{{ compose_dir }}"
+  changed_when: false
+
+- name: Migrations appliquees (apres)
+  ansible.builtin.command: >-
+    docker compose exec -T postgres psql -U {{ postgres_user }} -d {{ postgres_db }} -Atc
+    "select count(*) from drizzle.migrations"
+  args:
+    chdir: "{{ compose_dir }}"
+  register: migr_apres
+  changed_when: (migr_avant.stdout | default('0') | int) != (migr_apres.stdout | int)
+
+- name: Demarrer l'api (et le worker BullMQ)
+  community.docker.docker_compose_v2:
+    project_src: "{{ compose_dir }}"
+    services: [api]
+    state: present
+
+# l'image a un HEALTHCHECK sur /v1/health (postgres, valkey, minio)
+- name: Attendre que l'api soit healthy
+  ansible.builtin.command: docker inspect -f '{{ '{{' }}.State.Health.Status{{ '}}' }}' flixy-api
+  register: sante
+  until: sante.stdout == 'healthy'
+  retries: 30
+  delay: 5
+  changed_when: false

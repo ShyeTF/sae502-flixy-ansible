@@ -1,38 +1,19 @@
-Role Name
-=========
+# Role flixy_app (vm-app)
 
-A brief description of the role goes here.
+1. **Images** (`tasks/images.yml`) : clone en lecture seule du code Flixy sur le noeud
+   de controle (commits de `flixy_src`), archive envoyee sur vm-app, `docker build`
+   local avec le tag `sae-1.0`. Rien n'est pousse sur le GitLab ni sur le registre de
+   Flixy. Reconstruction seulement si l'image manque ou vient d'un autre commit
+   (label `org.opencontainers.image.revision`).
+2. verif que `/data/flixy` est bien monte (NFS)
+3. fichiers d'environnement en 0600 (secrets depuis Vault) + `compose.yml`
+4. `up` de postgres, valkey, minio, web (toujours), creation du bucket `user.picture`
+5. sauf maintenance ou verrou de restauration : migrator (changed seulement si une
+   migration a ete appliquee), puis api, attente du healthcheck `/v1/health`
 
-Requirements
-------------
+Aucun port n'est publie par ce compose. nginx (role reverse_proxy) rejoint le reseau
+`flixy_interne`.
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
-
-Role Variables
---------------
-
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
-
-Dependencies
-------------
-
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
-
-Example Playbook
-----------------
-
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
-
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
-
-License
--------
-
-BSD
-
-Author Information
-------------------
-
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+L'api exige des variables Google, Apple, Sonarr et Cloudflare : pour la copie SAE ce
+sont des valeurs factices (vault), ces fonctions ne sont pas utilisees dans la demo.
+Turnstile utilise les cles de test officielles de Cloudflare (le captcha passe toujours).

@@ -1,0 +1,95 @@
+# {{ ansible_managed }}
+# Application Flixy (vm-app). Aucun port publie ici : seul nginx (role reverse_proxy)
+# publie 80/443 et rejoint le reseau flixy_interne.
+name: flixy
+
+services:
+  postgres:
+    image: {{ images.postgres }}
+    container_name: flixy-postgres
+    restart: unless-stopped
+    env_file: db.env
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{ postgres_user }} -d {{ postgres_db }}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [interne]
+
+  valkey:
+    image: {{ images.valkey }}
+    container_name: flixy-valkey
+    restart: unless-stopped
+    env_file: db.env
+    command: ["sh", "-c", "exec valkey-server --requirepass \"$$VALKEY_PASSWORD\" --appendonly yes"]
+    volumes:
+      - valkeydata:/data
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a \"$$VALKEY_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [interne]
+
+  minio:
+    image: {{ images.minio }}
+    container_name: flixy-minio
+    restart: unless-stopped
+    env_file: minio.env
+    command: ["server", "/data"]
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [interne]
+
+  # lance a la main par Ansible (docker compose run --rm migrator), jamais par "up"
+  migrator:
+    image: {{ images.migrator }}
+    pull_policy: never
+    env_file: api.env
+    profiles: [outils]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [interne]
+
+  api:
+    image: {{ images.api }}
+    pull_policy: never
+    container_name: flixy-api
+    restart: unless-stopped
+    env_file: api.env
+    user: "{{ flixy_uid }}:{{ flixy_gid }}"
+    volumes:
+      - {{ data_path }}:{{ data_path }}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks: [interne]
+
+  web:
+    image: {{ images.web }}
+    pull_policy: never
+    container_name: flixy-web
+    restart: unless-stopped
+    env_file: web.env
+    networks: [interne]
+
+networks:
+  interne:
+    name: flixy_interne
+
+volumes:
+  pgdata:
+  valkeydata:
+  miniodata:

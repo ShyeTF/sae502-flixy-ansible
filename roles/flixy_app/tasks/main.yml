@@ -1,11 +1,21 @@
 ---
 # tasks file for flixy_app
-- name: Creer le dossier du compose Flixy
+- name: Dossiers du compose Flixy
   ansible.builtin.file:
-    path: "{{ compose_dir }}"
+    path: "{{ item }}"
     state: directory
     mode: "0750"
-  become: true
+  loop:
+    - "{{ compose_dir }}"
+    - "{{ flixy_build_dir }}"
+
+- name: Images web, api et migrator (sae-1.0)
+  ansible.builtin.include_tasks: images.yml
+
+# --- verif du NFS avant tout demarrage (l'api lit les films sur le partage) ---
+- name: Verif NFS - {{ data_path }} est monte
+  ansible.builtin.command: mountpoint -q {{ data_path }}
+  changed_when: false
 
 - name: Verrou de restauration present ?
   ansible.builtin.stat:
@@ -16,17 +26,58 @@
   ansible.builtin.set_fact:
     flixy_start_writers: "{{ not (flixy_maintenance | bool) and not restore_lock.stat.exists }}"
 
-- name: A faire
-  ansible.builtin.debug:
-    msg: "flixy_app : compose Jinja2 (web/api/migrator {{ flixy_image_tag }}, postgres, valkey, minio non publies), verif NFS avant up"
+# --- fichiers de config (secrets en 0600, jamais affiches) ---
+- name: Fichiers d'environnement (secrets depuis Vault)
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "{{ compose_dir }}/{{ item }}"
+    mode: "0600"
+  loop: [db.env, minio.env, mc.env, api.env, web.env]
+  no_log: true
 
-- name: A faire - services de donnees
-  ansible.builtin.debug:
-    msg: "compose up -d postgres valkey minio web (toujours)"
+- name: Fichier compose Flixy
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ compose_dir }}/compose.yml"
+    mode: "0640"
 
-- name: A faire - migrator puis api
+# --- services de donnees + front (toujours) ---
+- name: Demarrer postgres, valkey, minio et web
+  community.docker.docker_compose_v2:
+    project_src: "{{ compose_dir }}"
+    services: [postgres, valkey, minio, web]
+    state: present
+    wait: true
+    wait_timeout: 180
+
+- name: Bucket MinIO {{ minio_bucket }} existe ?
+  ansible.builtin.command: >-
+    docker run --rm --network flixy_interne --env-file {{ compose_dir }}/mc.env
+    {{ images.mc }} ls local/{{ minio_bucket }}
+  register: bucket
+  changed_when: false
+  failed_when: false
+
+- name: Creer le bucket MinIO {{ minio_bucket }}
+  ansible.builtin.command: >-
+    docker run --rm --network flixy_interne --env-file {{ compose_dir }}/mc.env
+    {{ images.mc }} mb local/{{ minio_bucket }}
+  when: bucket.rc != 0
+  changed_when: true
+
+# --- migrator puis api, sauf en maintenance / restauration ---
+- name: Migrations et api
+  ansible.builtin.include_tasks: ecrivains.yml
+  when: flixy_start_writers | bool
+
+- name: Maintenance ou restauration - api arretee
+  community.docker.docker_compose_v2:
+    project_src: "{{ compose_dir }}"
+    services: [api]
+    state: stopped
+  when: not (flixy_start_writers | bool)
+
+- name: Maintenance ou restauration - message
   ansible.builtin.debug:
-    msg: >-
-      {{ 'compose run --rm migrator puis up -d api'
-         if flixy_start_writers else
-         'maintenance ou restauration en cours : ' ~ (flixy_write_services | join(', ')) ~ ' pas demarres' }}
+    msg: "maintenance ou restauration en cours : {{ flixy_write_services | join(', ') }} pas demarres"
+  when: not (flixy_start_writers | bool)

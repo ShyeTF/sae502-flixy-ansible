@@ -1,3 +1,32 @@
-#SPDX-License-Identifier: MIT-0
 ---
-# defaults file for roles/flixy_app
+# dossier du code Flixy clone sur le noeud de controle (dans .gitignore)
+flixy_src_local: "{{ playbook_dir }}/../.src"
+flixy_build_dir: "{{ compose_dir }}/build"
+
+# images construites sur vm-app (rien n'est pousse sur un registre)
+flixy_builds:
+  - nom: api
+    src: back
+    dockerfile: Dockerfile
+    args: { APP: api, APP_VERSION: "{{ flixy_image_tag }}" }
+  - nom: migrator
+    src: back
+    dockerfile: migrator/Dockerfile
+    args: {}
+  - nom: web
+    src: front
+    dockerfile: Dockerfile
+    args: { APP_NAME: web, APP_VERSION: "{{ flixy_image_tag }}" }
+
+postgres_user: flixy
+postgres_db: flixy
+s3_region: us-east-1
+
+# id du profil qualite de Radarr, lu sur vm-media (fait par media_stack). 4 = HD-1080p
+# dans une installation neuve de Radarr, si le role media_stack n'a pas tourne.
+flixy_radarr_profile_id: "{{ hostvars[groups['media'][0]].radarr_profile_id | default(4) }}"
+
+# durees des jetons de l'api (secondes)
+jwt_lifetime: 3600
+jwt_mfa_lifetime: 300
+jwt_restricted_lifetime: 600

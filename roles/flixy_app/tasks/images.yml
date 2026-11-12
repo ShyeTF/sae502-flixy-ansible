@@ -1,0 +1,88 @@
+---
+# Construction des images Flixy pour la SAE, sans toucher au GitLab ni au registre
+# de Flixy : clone en LECTURE SEULE sur le noeud de controle, au commit fixe,
+# archive envoyee sur vm-app, docker build local avec le tag sae-1.0.
+
+- name: Code Flixy - clone en lecture seule au commit fixe (noeud de controle)
+  ansible.builtin.git:
+    repo: "{{ item.value.repo }}"
+    dest: "{{ flixy_src_local }}/{{ item.key }}"
+    version: "{{ item.value.version }}"
+    update: true
+  loop: "{{ flixy_src | dict2items }}"
+  loop_control:
+    label: "{{ item.key }} @ {{ item.value.version[:8] }}"
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Code Flixy - archive du commit (noeud de controle)
+  ansible.builtin.command:
+    cmd: git archive --format=tar.gz -o ../{{ item.key }}-{{ item.value.version }}.tar.gz {{ item.value.version }}
+    chdir: "{{ flixy_src_local }}/{{ item.key }}"
+    creates: "{{ flixy_src_local }}/{{ item.key }}-{{ item.value.version }}.tar.gz"
+  loop: "{{ flixy_src | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  delegate_to: localhost
+  run_once: true
+  become: false
+
+- name: Code Flixy - dossier de build par commit
+  ansible.builtin.file:
+    path: "{{ flixy_build_dir }}/{{ item.key }}-{{ item.value.version }}"
+    state: directory
+    mode: "0750"
+  loop: "{{ flixy_src | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Code Flixy - extraction sur vm-app
+  ansible.builtin.unarchive:
+    src: "{{ flixy_src_local }}/{{ item.key }}-{{ item.value.version }}.tar.gz"
+    dest: "{{ flixy_build_dir }}/{{ item.key }}-{{ item.value.version }}"
+    creates: "{{ flixy_build_dir }}/{{ item.key }}-{{ item.value.version }}/Dockerfile"
+  loop: "{{ flixy_src | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+# on reconstruit seulement si l'image n'existe pas ou vient d'un autre commit
+- name: Images Flixy deja construites ?
+  community.docker.docker_image_info:
+    name: "{{ images[item.nom] }}"
+  loop: "{{ flixy_builds }}"
+  loop_control:
+    label: "{{ item.nom }}"
+  register: infos_images
+
+- name: Construire les images manquantes ou d'un autre commit
+  community.docker.docker_image_build:
+    name: "{{ flixy_image_prefix }}/{{ item.0.nom }}"
+    tag: "{{ flixy_image_tag }}"
+    path: "{{ flixy_build_dir }}/{{ item.0.src }}-{{ flixy_src[item.0.src].version }}"
+    dockerfile: "{{ item.0.dockerfile }}"
+    args: "{{ item.0.args }}"
+    labels:
+      org.opencontainers.image.revision: "{{ flixy_src[item.0.src].version }}"
+      org.opencontainers.image.version: "{{ flixy_image_tag }}"
+    platform: linux/amd64
+    rebuild: always
+  loop: "{{ flixy_builds | zip(infos_images.results) | list }}"
+  loop_control:
+    label: "{{ item.0.nom }}"
+  when: >-
+    item.1.images | length == 0 or
+    (item.1.images[0].Config.Labels | default({}, true))['org.opencontainers.image.revision'] | default('')
+    != flixy_src[item.0.src].version
+
+- name: Id des images (a noter dans docs/images.md)
+  ansible.builtin.command: docker image inspect -f '{{ '{{' }}.Id{{ '}}' }}' {{ images[item.nom] }}
+  loop: "{{ flixy_builds }}"
+  loop_control:
+    label: "{{ item.nom }}"
+  register: ids_images
+  changed_when: false
+
+- name: Id des images - affichage
+  ansible.builtin.debug:
+    msg: "{{ ids_images.results | map(attribute='item.nom') | zip(ids_images.results | map(attribute='stdout')) | map('join', ' = ') | list }}"
