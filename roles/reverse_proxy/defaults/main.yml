@@ -1,3 +1,4 @@
-#SPDX-License-Identifier: MIT-0
 ---
-# defaults file for roles/reverse_proxy
+proxy_dir: "{{ compose_dir }}/proxy"
+proxy_cert_jours: 825
+proxy_taille_max_upload: 20m

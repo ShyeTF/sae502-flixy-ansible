@@ -1,12 +1,53 @@
 ---
 # tasks file for reverse_proxy
-- name: A faire
-  ansible.builtin.debug:
-    msg: "reverse_proxy : seul conteneur publie (80/443), 301 80->443, cert auto-signe, {{ webhook_path }} autorise depuis {{ webhook_allowed_ip }} seulement"
+- name: Dossiers de nginx
+  ansible.builtin.file:
+    path: "{{ proxy_dir }}/{{ item }}"
+    state: directory
+    mode: "0750"
+  loop: ["", conf.d, certs]
 
-- name: A faire - mode maintenance
-  ansible.builtin.debug:
-    msg: >-
-      {{ 'maintenance : 503 sur / et sur ' ~ webhook_path
-         if flixy_maintenance | bool else
-         'mode normal' }}
+# certificat auto-signe pour la copie de demo (pas de nom de domaine)
+- name: Certificat TLS auto-signe
+  ansible.builtin.command:
+    cmd: >-
+      openssl req -x509 -newkey rsa:2048 -nodes -days {{ proxy_cert_jours }}
+      -keyout {{ proxy_dir }}/certs/flixy.key -out {{ proxy_dir }}/certs/flixy.crt
+      -subj "/CN={{ flixy_public_host }}"
+      -addext "subjectAltName=IP:{{ flixy_public_host }}"
+    creates: "{{ proxy_dir }}/certs/flixy.crt"
+
+- name: Droits de la cle privee
+  ansible.builtin.file:
+    path: "{{ proxy_dir }}/certs/flixy.key"
+    mode: "0600"
+
+# un seul modele : en maintenance il renvoie 503 sur le site et sur le webhook
+- name: Configuration nginx ({{ 'maintenance' if flixy_maintenance | bool else 'normal' }})
+  ansible.builtin.template:
+    src: flixy.conf.j2
+    dest: "{{ proxy_dir }}/conf.d/default.conf"
+    mode: "0644"
+  notify: Recharger nginx
+
+- name: Fichier compose de nginx
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ proxy_dir }}/compose.yml"
+    mode: "0640"
+
+- name: Demarrer nginx
+  community.docker.docker_compose_v2:
+    project_src: "{{ proxy_dir }}"
+    state: present
+
+# UFW pour la forme : comme le port est publie par Docker, le vrai filtrage est
+# dans DOCKER-USER (role docker)
+- name: UFW - 80 et 443 depuis le LAN
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+    from_ip: "{{ lan_cidr }}"
+    comment: nginx flixy
+  loop: ["80", "443"]

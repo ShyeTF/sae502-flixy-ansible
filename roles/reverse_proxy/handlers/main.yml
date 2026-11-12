@@ -1,3 +1,8 @@
-#SPDX-License-Identifier: MIT-0
 ---
-# handlers file for roles/reverse_proxy
+- name: Recharger nginx
+  ansible.builtin.command: docker compose exec -T nginx nginx -s reload
+  args:
+    chdir: "{{ proxy_dir }}"
+  changed_when: true
+  # au 1er deploiement le conteneur n'existe pas encore au moment du handler
+  failed_when: false

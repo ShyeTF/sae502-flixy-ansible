@@ -1,0 +1,60 @@
+# {{ ansible_managed }}
+# Mode : {{ 'MAINTENANCE (restauration en cours)' if flixy_maintenance | bool else 'normal' }}
+
+# HTTP : uniquement une redirection vers HTTPS
+server {
+    listen 80 default_server;
+    server_name _;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl default_server;
+    http2 on;
+    server_name _;
+
+    ssl_certificate     /etc/nginx/certs/flixy.crt;
+    ssl_certificate_key /etc/nginx/certs/flixy.key;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    client_max_body_size {{ proxy_taille_max_upload }};
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+{% if flixy_maintenance | bool %}
+    # restauration en cours : rien ne doit ecrire dans la base ni dans MinIO
+    location / {
+        default_type text/plain;
+        return 503 "Flixy est en maintenance (restauration en cours)\n";
+    }
+{% else %}
+    # DNS de Docker : nginx demarre meme si l'api est arretee
+    resolver 127.0.0.11 valid=10s;
+    set $api http://api:{{ ports.api }};
+    set $web http://web:{{ ports.web }};
+
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # webhook de Radarr : seulement depuis vm-media (le secret Bearer est verifie par l'api)
+    location = {{ webhook_path }} {
+        allow {{ webhook_allowed_ip }};
+        deny all;
+        proxy_pass $api;
+    }
+
+    # api (routes versionnees /v1/...)
+    location /v1/ {
+        proxy_pass $api;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # front web
+    location / {
+        proxy_pass $web;
+    }
+{% endif %}
+}

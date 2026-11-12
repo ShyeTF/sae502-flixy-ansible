@@ -1,0 +1,21 @@
+# {{ ansible_managed }}
+# Seul conteneur qui publie des ports sur vm-app (80 et 443).
+name: flixy-proxy
+
+services:
+  nginx:
+    image: {{ images.nginx }}
+    container_name: flixy-nginx
+    restart: unless-stopped
+    ports:
+      - "{{ ports.http }}:80"
+      - "{{ ports.https }}:443"
+    volumes:
+      - ./conf.d:/etc/nginx/conf.d:ro
+      - ./certs:/etc/nginx/certs:ro
+    networks: [interne]
+
+networks:
+  interne:
+    name: flixy_interne
+    external: true
