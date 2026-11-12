@@ -39,6 +39,7 @@
   loop: "{{ flixy_src | dict2items }}"
   loop_control:
     label: "{{ item.key }}"
+  when: not (archives_src.results | selectattr('item.key', 'equalto', item.key) | first).stat.exists
   delegate_to: localhost
   run_once: true
   become: false

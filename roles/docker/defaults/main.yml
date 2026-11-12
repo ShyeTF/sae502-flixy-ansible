@@ -10,3 +10,6 @@ docker_paquets:
 # Chaque entree : port publie sur l'hote + sources autorisees, tout le reste est jete.
 # Definies dans group_vars (app / media), vide par defaut.
 docker_user_regles: []
+
+# interface LAN de la VM (trafic entrant filtre par DOCKER-USER)
+docker_user_interface: "{{ ansible_facts['default_ipv4']['interface'] | default('ens18') }}"

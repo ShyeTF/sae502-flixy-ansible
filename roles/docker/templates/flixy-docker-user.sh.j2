@@ -2,6 +2,8 @@
 # {{ ansible_managed }}
 # Filtrage des ports publies par Docker (chaine DOCKER-USER).
 # --ctorigdstport : on regarde le port d'origine, avant le DNAT de Docker.
+# -i {{ docker_user_interface }} : seulement le trafic qui ARRIVE par le LAN. Sans ca, les
+# conteneurs (et les docker build) ne pouvaient plus sortir vers internet en 80/443.
 set -e
 
 iptables -N DOCKER-USER 2>/dev/null || true
@@ -10,9 +12,9 @@ iptables -F DOCKER-USER
 {% for r in docker_user_regles %}
 # {{ r.nom }} : port {{ r.port }}
 {% for src in r.sources %}
-iptables -A DOCKER-USER -p tcp -m conntrack --ctorigdstport {{ r.port }} --ctdir ORIGINAL -s {{ src }} -j RETURN
+iptables -A DOCKER-USER -i {{ docker_user_interface }} -p tcp -m conntrack --ctorigdstport {{ r.port }} --ctdir ORIGINAL -s {{ src }} -j RETURN
 {% endfor %}
-iptables -A DOCKER-USER -p tcp -m conntrack --ctorigdstport {{ r.port }} --ctdir ORIGINAL -j DROP
+iptables -A DOCKER-USER -i {{ docker_user_interface }} -p tcp -m conntrack --ctorigdstport {{ r.port }} --ctdir ORIGINAL -j DROP
 {% endfor %}
 
 iptables -A DOCKER-USER -j RETURN
