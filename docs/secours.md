@@ -65,3 +65,26 @@ sur la prod), puis encore la veille :
 
 Les sorties (commande curl, réponse de Radarr, extraits de logs nginx et api, date du
 test) vont dans `tests/preuves/secours/`, sans la clé API. Voir `tests/preuves/README.md`.
+
+## Résultat du test du 12/11/2026 (copie SAE, VM 104/105)
+
+Script : `tests/demo/demo-secours.sh` (clé API lue par l'entrée standard).
+Preuve : `tests/preuves/secours/demo-b-sintel.txt`.
+
+- Sintel (CC BY 3.0, TMDB 45745) ajouté dans Radarr, fichier 1080p (md5 vérifié avec
+  celui de download.blender.org) copié dans `import/`, import `DownloadedMoviesScan` :
+  Radarr range `/data/flixy/films/Sintel (2010)/Sintel (2010) WEBDL-1080p.mkv` (uid/gid
+  1000, visible depuis vm-app via NFS) ;
+- le webhook part tout seul : nginx `POST /v1/radarr/webhook 201` depuis 192.168.1.55,
+  l'api reçoit `Download`, relit le film dans Radarr ;
+- l'api l'ignore (`ignored: not requested`) : dans ce test personne n'avait demandé le
+  film depuis le site (étape 1 sautée).
+
+Limite connue : pour aller jusqu'au catalogue, l'api va chercher la fiche du film sur
+TMDB (`putMovie` → `resolveMovie`). Il faut donc une **vraie clé TMDB** (compte
+personnel gratuit, pas celle de la prod) dans `vault_tmdb_api_key`, et un compte
+utilisateur sur la copie pour faire la demande. Avec la clé factice, la chaîne marche
+jusqu'au webhook compris.
+
+Remettre l'état de départ : supprimer Sintel dans Radarr avec ses fichiers
+(`DELETE /api/v3/movie/1?deleteFiles=true`), le fichier de démo reste dans `demo/`.

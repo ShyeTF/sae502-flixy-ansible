@@ -7,3 +7,12 @@ vm-media                   : ok=88   changed=7    unreachable=0    failed=0    s
 vm-app                     : ok=63   changed=0    unreachable=0    failed=0    skipped=21   rescued=0    ignored=0   
 vm-media                   : ok=85   changed=0    unreachable=0    failed=0    skipped=34   rescued=0    ignored=0   
 
+# deploy.yml deux fois de suite apres la rotation des secrets - 12/11/2026 13:52 (heure de Paris)
+## deploy-16 (-e arr_appliquer_secrets=true)
+vm-app                     : ok=63   changed=2    unreachable=0    failed=0    skipped=21   rescued=0    ignored=0   
+vm-media                   : ok=96   changed=11   unreachable=0    failed=0    skipped=26   rescued=0    ignored=0   
+
+## deploy-17 (normal) : changed=0
+vm-app                     : ok=63   changed=0    unreachable=0    failed=0    skipped=21   rescued=0    ignored=0   
+vm-media                   : ok=86   changed=0    unreachable=0    failed=0    skipped=36   rescued=0    ignored=0   
+

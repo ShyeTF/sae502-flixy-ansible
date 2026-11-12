@@ -1,0 +1,27 @@
+== 12/11/2026 13:51:16 demo B (secours) : import + webhook
+-- 1. Sintel (TMDB 45745) ajoute dans Radarr, surveille, sans recherche
+Sintel 2010 id 1 path /data/flixy/films/Sintel (2010)
+-- 2. copie du fichier de demo dans le dossier d'import
+total 1152440
+-rw-rw-r-- 1 deploy deploy 1180090590 Nov 12 13:51 Sintel.2010.1080p.mkv
+-- 3. import par l'API Radarr (DownloadedMoviesScan, Move)
+commande DownloadedMoviesScan id 216 started
+-- 4. fichier range par Radarr : /data/flixy/films/Sintel (2010)/Sintel (2010) WEBDL-1080p.mkv
+-rw-rw-r-- 1 1000 1000 1180090590 Nov 12 13:51 /data/flixy/films/Sintel (2010)/Sintel (2010) WEBDL-1080p.mkv
+fichiers restants dans import : 0
+-- 5. historique Radarr (dernier evenement)
+2026-11-12T12:51:19Z downloadFolderImported Sintel.2010.1080p
+rc=0
+
+== nginx (vm-app) : appel du webhook
+192.168.1.55 - - [12/Nov/2026:12:51:19 +0000] "POST /v1/radarr/webhook HTTP/2.0" 201 0 "-" "Radarr/6.4.4.10685 (alpine 3.24.4)" "-"
+
+== api (vm-app) : reception et traitement
+[Nest] 7  - 11/12/2026, 12:51:19 PM     LOG [Radarr] Received webhook event : Download
+[Nest] 7  - 11/12/2026, 12:51:19 PM VERBOSE [HttpResponse] POST /v1/radarr/webhook 201 - 172.18.0.7 - 7ms
+[Nest] 7  - 11/12/2026, 12:51:19 PM     LOG [Radarr] GET http://192.168.1.55:7878/api/v3/movie/1 200 31ms
+[Nest] 7  - 11/12/2026, 12:51:19 PM    WARN [MovieAcquisition] Movie "Sintel" (45745) ignored: not requested
+
+== fichier vu par vm-app via NFS
+total 1152440
+-rw-rw-r-- 1 1000 1000 1180090590 Nov 12 13:51 Sintel (2010) WEBDL-1080p.mkv
