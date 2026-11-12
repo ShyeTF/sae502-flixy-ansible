@@ -1,0 +1,59 @@
+# {{ ansible_managed }}
+# Pile media de Flixy (vm-media). Seul Radarr publie un port (7878, filtre DOCKER-USER).
+name: flixy-media
+
+x-commun: &commun
+  restart: unless-stopped
+  environment:
+    PUID: "{{ flixy_uid }}"
+    PGID: "{{ flixy_gid }}"
+    UMASK: "002"
+    TZ: Europe/Paris
+
+services:
+  radarr:
+    <<: *commun
+    image: {{ images.radarr }}
+    container_name: radarr
+    volumes:
+      - {{ media_compose_dir }}/radarr:/config
+      - {{ data_path }}:{{ data_path }}
+    ports:
+      - "{{ ports.radarr }}:7878"
+    networks:
+      media:
+        ipv4_address: {{ media_docker_ips.radarr }}
+
+  prowlarr:
+    <<: *commun
+    image: {{ images.prowlarr }}
+    container_name: prowlarr
+    volumes:
+      - {{ media_compose_dir }}/prowlarr:/config
+    networks:
+      media:
+        ipv4_address: {{ media_docker_ips.prowlarr }}
+
+  qbittorrent:
+    <<: *commun
+    image: {{ images.qbittorrent }}
+    container_name: qbittorrent
+    environment:
+      PUID: "{{ flixy_uid }}"
+      PGID: "{{ flixy_gid }}"
+      UMASK: "002"
+      TZ: Europe/Paris
+      WEBUI_PORT: "{{ ports.qbittorrent }}"
+    volumes:
+      - {{ media_compose_dir }}/qbittorrent:/config
+      - {{ data_path }}:{{ data_path }}
+    networks:
+      media:
+        ipv4_address: {{ media_docker_ips.qbittorrent }}
+
+networks:
+  media:
+    name: flixy-media
+    ipam:
+      config:
+        - subnet: {{ media_docker_subnet }}

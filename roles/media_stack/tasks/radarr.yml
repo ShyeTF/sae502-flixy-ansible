@@ -1,0 +1,187 @@
+---
+# Etat complet de Radarr (voir docs/radarr.md). Ordre : racine, profil, gestion des
+# medias, nommage, hote (auth + certificat), client qBittorrent, webhook.
+
+# --- dossier racine ---
+- name: Radarr - dossiers racine
+  ansible.builtin.uri:
+    url: "{{ radarr_api }}/rootfolder"
+    headers:
+      X-Api-Key: "{{ vault_radarr_api_key }}"
+    return_content: true
+  register: racines
+  changed_when: false
+  no_log: true
+
+- name: Radarr - ajouter {{ radarr_root_folder }}
+  ansible.builtin.uri:
+    url: "{{ radarr_api }}/rootfolder"
+    method: POST
+    headers:
+      X-Api-Key: "{{ vault_radarr_api_key }}"
+    body_format: json
+    body:
+      path: "{{ radarr_root_folder }}"
+    status_code: [200, 201]
+  when: radarr_root_folder not in (racines.json | map(attribute='path') | map('regex_replace', '/$', '') | list)
+  changed_when: true
+  no_log: true
+
+# --- profil qualite ---
+- name: Radarr - profils qualite
+  ansible.builtin.uri:
+    url: "{{ radarr_api }}/qualityprofile"
+    headers:
+      X-Api-Key: "{{ vault_radarr_api_key }}"
+    return_content: true
+  register: profils
+  changed_when: false
+  no_log: true
+
+- name: Radarr - recreer le profil {{ radarr_quality_profile }} s'il manque
+  when: radarr_quality_profile not in (profils.json | map(attribute='name') | list)
+  block:
+    - name: Radarr - modele de profil
+      ansible.builtin.uri:
+        url: "{{ radarr_api }}/qualityprofile/schema"
+        headers:
+          X-Api-Key: "{{ vault_radarr_api_key }}"
+        return_content: true
+      register: profil_modele
+      no_log: true
+
+    # on autorise toutes les qualites (et groupes) en 1080p, coupure sur Bluray-1080p
+    - name: Radarr - creer le profil
+      ansible.builtin.uri:
+        url: "{{ radarr_api }}/qualityprofile"
+        method: POST
+        headers:
+          X-Api-Key: "{{ vault_radarr_api_key }}"
+        body_format: json
+        body: >-
+          {{ profil_modele.json | combine({
+               'name': radarr_quality_profile,
+               'upgradeAllowed': true,
+               'cutoff': 7,
+               'items': profil_modele.json['items'] | map('combine', {'allowed': false}) | list
+             }) }}
+        status_code: [200, 201]
+      register: profil_cree
+      changed_when: true
+      no_log: true
+
+    - name: Radarr - autoriser les qualites 1080p dans le nouveau profil
+      ansible.builtin.uri:
+        url: "{{ radarr_api }}/qualityprofile/{{ profil_cree.json.id }}"
+        method: PUT
+        headers:
+          X-Api-Key: "{{ vault_radarr_api_key }}"
+        body_format: json
+        body: >-
+          {{ profil_cree.json | combine({'items':
+               (profil_cree.json['items'] | selectattr('quality', 'defined') | selectattr('quality.name', 'search', '1080p')
+                 | map('combine', {'allowed': true}) | list)
+               + (profil_cree.json['items'] | selectattr('quality', 'defined') | rejectattr('quality.name', 'search', '1080p') | list)
+               + (profil_cree.json['items'] | selectattr('quality', 'undefined') | selectattr('name', 'search', '1080p')
+                 | map('combine', {'allowed': true}) | list)
+               + (profil_cree.json['items'] | selectattr('quality', 'undefined') | rejectattr('name', 'search', '1080p') | list)
+             }) }}
+        status_code: [200, 202]
+      changed_when: true
+      no_log: true
+
+    - name: Radarr - relire les profils
+      ansible.builtin.uri:
+        url: "{{ radarr_api }}/qualityprofile"
+        headers:
+          X-Api-Key: "{{ vault_radarr_api_key }}"
+        return_content: true
+      register: profils
+      no_log: true
+
+# l'api Flixy a besoin de l'id du profil (RADARR_PROFILE), lu par le role flixy_app
+- name: Radarr - id du profil {{ radarr_quality_profile }}
+  ansible.builtin.set_fact:
+    radarr_profile_id: "{{ (profils.json | selectattr('name', 'equalto', radarr_quality_profile) | first).id }}"
+
+# --- configs uniques ---
+- name: Radarr - gestion des medias (hardlinks, droits)
+  ansible.builtin.include_tasks: config_unique.yml
+  vars:
+    c_api: "{{ radarr_api }}"
+    c_cle: "{{ vault_radarr_api_key }}"
+    c_endpoint: config/mediamanagement
+    c_valeurs: "{{ radarr_media_management }}"
+
+- name: Radarr - nommage
+  ansible.builtin.include_tasks: config_unique.yml
+  vars:
+    c_api: "{{ radarr_api }}"
+    c_cle: "{{ vault_radarr_api_key }}"
+    c_endpoint: config/naming
+    c_valeurs: "{{ radarr_naming }}"
+
+- name: Radarr - hote (authentification Forms + validation du certificat)
+  ansible.builtin.include_tasks: config_unique.yml
+  vars:
+    c_api: "{{ radarr_api }}"
+    c_cle: "{{ vault_radarr_api_key }}"
+    c_endpoint: config/host
+    c_valeurs:
+      authenticationMethod: forms
+      authenticationRequired: enabled
+      username: "{{ vault_arr_admin_user }}"
+      certificateValidation: "{{ radarr_certificate_validation }}"
+    c_secrets:
+      password: "{{ vault_arr_admin_password }}"
+      passwordConfirmation: "{{ vault_arr_admin_password }}"
+
+# --- client de telechargement ---
+- name: Radarr - client qBittorrent
+  ansible.builtin.include_tasks: provider.yml
+  vars:
+    p_api: "{{ radarr_api }}"
+    p_cle: "{{ vault_radarr_api_key }}"
+    p_endpoint: downloadclient
+    p_nom: "{{ radarr_download_client.name }}"
+    p_schema: "{{ radarr_download_client.implementation }}"
+    p_champs:
+      enable: true
+      protocol: torrent
+      priority: 1
+      removeCompletedDownloads: true
+      removeFailedDownloads: true
+    p_fields:
+      host: "{{ radarr_download_client.host }}"
+      port: "{{ radarr_download_client.port | int }}"
+      useSsl: false
+      username: "{{ vault_qbittorrent_user }}"
+      password: "{{ vault_qbittorrent_password }}"
+      movieCategory: "{{ radarr_download_client.category }}"
+    p_secrets: [password]
+
+# --- webhook vers l'api Flixy ---
+# forceSave : Radarr teste l'URL a l'enregistrement, et au 1er deploiement (ou en
+# maintenance) l'api ne repond pas encore
+- name: Radarr - webhook Flixy
+  ansible.builtin.include_tasks: provider.yml
+  vars:
+    p_api: "{{ radarr_api }}"
+    p_cle: "{{ vault_radarr_api_key }}"
+    p_endpoint: notification
+    p_nom: "{{ radarr_webhook.name }}"
+    p_schema: Webhook
+    p_query: "?forceSave=true"
+    p_champs:
+      onGrab: false
+      onDownload: "{{ radarr_webhook.on_download }}"
+      onUpgrade: "{{ radarr_webhook.on_upgrade }}"
+      onMovieDelete: "{{ radarr_webhook.on_movie_delete }}"
+      onMovieFileDelete: "{{ radarr_webhook.on_movie_file_delete }}"
+    p_fields:
+      url: "{{ radarr_webhook.url }}"
+      method: "{{ radarr_webhook.method | int }}"
+      headers:
+        - key: Authorization
+          value: "Bearer {{ vault_radarr_webhook_secret }}"
+    p_secrets: [headers]

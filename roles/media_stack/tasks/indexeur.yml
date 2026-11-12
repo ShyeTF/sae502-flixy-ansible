@@ -1,0 +1,20 @@
+---
+- name: Prowlarr - indexeur {{ indexeur.name }}
+  ansible.builtin.include_tasks: provider.yml
+  vars:
+    p_api: "{{ prowlarr_api }}"
+    p_cle: "{{ vault_prowlarr_api_key }}"
+    p_endpoint: indexer
+    p_nom: "{{ indexeur.name }}"
+    p_schema_cle: definitionName
+    p_schema: "{{ indexeur.definition }}"
+    p_champs:
+      enable: true
+      appProfileId: 1
+      priority: 25
+    p_fields: "{{ indexeur.fields | default({}) }}"
+    p_secrets: "{{ indexeur.secrets | default([]) }}"
+
+- name: Prowlarr - noter si l'indexeur a change
+  ansible.builtin.set_fact:
+    prowlarr_a_synchroniser: "{{ prowlarr_a_synchroniser | bool or p_a_change | bool }}"

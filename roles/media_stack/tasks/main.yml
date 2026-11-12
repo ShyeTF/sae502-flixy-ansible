@@ -1,30 +1,118 @@
 ---
 # tasks file for media_stack
-- name: A faire - compose
-  ansible.builtin.debug:
-    msg: "media_stack : Radarr publie {{ ports.radarr }} (DOCKER-USER, {{ app_ip }} seulement), Prowlarr et qBittorrent non publies, PUID {{ flixy_uid }}"
-
-- name: A faire - fichiers de config avant le 1er demarrage
-  ansible.builtin.debug:
-    msg: "config.xml Radarr et Prowlarr (ApiKey depuis Vault, auth Forms), qBittorrent.conf (mot de passe Vault)"
-
-- name: A faire - etat de Radarr par API (GET avant POST/PUT)
-  ansible.builtin.debug:
-    msg: "{{ item.endpoint }} : {{ item.quoi }}"
+- name: Dossiers de config des conteneurs
+  ansible.builtin.file:
+    path: "{{ media_compose_dir }}/{{ item }}"
+    state: directory
+    owner: "{{ flixy_uid }}"
+    group: "{{ flixy_gid }}"
+    mode: "0750"
   loop:
-    - { endpoint: "qbittorrent /api/v2/torrents/categories", quoi: "categorie {{ qbittorrent_category }} -> {{ qbittorrent_category_path }}" }
-    - { endpoint: "/api/v3/rootfolder", quoi: "{{ radarr_root_folder }}" }
-    - { endpoint: "/api/v3/qualityprofile", quoi: "profil {{ radarr_quality_profile }}" }
-    - { endpoint: "/api/v3/config/mediamanagement", quoi: "hardlinks, droits {{ data_mode }}" }
-    - { endpoint: "/api/v3/config/naming", quoi: "{{ radarr_movie_folder_format }}" }
-    - { endpoint: "/api/v3/config/host", quoi: "certificateValidation {{ radarr_certificate_validation }}" }
-    - { endpoint: "/api/v3/downloadclient", quoi: "{{ radarr_download_client.name }}, categorie {{ qbittorrent_category }}" }
-    - { endpoint: "prowlarr /api/v1/applications", quoi: "Radarr {{ radarr_url_internal }}, {{ prowlarr_app_sync_level }}" }
-    - { endpoint: "prowlarr /api/v1/indexer", quoi: "indexeurs de prowlarr_indexers, puis ApplicationIndexerSync" }
-    - { endpoint: "/api/v3/notification?forceSave=true", quoi: "webhook {{ radarr_webhook.url }}" }
-  loop_control:
-    label: "{{ item.endpoint }}"
+    - radarr
+    - prowlarr
+    - qbittorrent
+    - qbittorrent/qBittorrent
 
-- name: A faire - controle final de l'etat
-  ansible.builtin.debug:
-    msg: "GET de chaque endpoint + assert (racine, profil, client, au moins 1 indexeur synchro, webhook actif), changed_when: false"
+# --- fichiers de config avant le 1er demarrage ---
+# force: false -> poses une seule fois. Radarr, Prowlarr et qBittorrent reecrivent
+# eux-memes ces fichiers ensuite : si on les forcait, chaque passage serait "changed".
+# Tout le reste de l'etat est gere par leur API (taches suivantes).
+- name: config.xml de Radarr et Prowlarr (cle API depuis Vault)
+  ansible.builtin.template:
+    src: arr-config.xml.j2
+    dest: "{{ media_compose_dir }}/{{ item.dossier }}/config.xml"
+    owner: "{{ flixy_uid }}"
+    group: "{{ flixy_gid }}"
+    mode: "0640"
+    force: false
+  vars:
+    arr_port: "{{ item.port }}"
+    arr_api_key: "{{ item.cle }}"
+    arr_nom: "{{ item.nom }}"
+  loop:
+    - { dossier: radarr, port: "{{ ports.radarr }}", cle: "{{ vault_radarr_api_key }}", nom: Radarr }
+    - { dossier: prowlarr, port: "{{ ports.prowlarr }}", cle: "{{ vault_prowlarr_api_key }}", nom: Prowlarr }
+  loop_control:
+    label: "{{ item.dossier }}"
+  no_log: true
+
+# qBittorrent attend le mot de passe en PBKDF2 (sha512, 100000 tours). Le sel est
+# derive du mot de passe pour que le resultat soit toujours le meme (idempotence).
+- name: Hash PBKDF2 du mot de passe qBittorrent
+  ansible.builtin.command:
+    cmd: >-
+      python3 -c "import sys,hashlib,base64;
+      p=sys.stdin.read().strip().encode();
+      s=hashlib.sha256(b'flixy-qbit-'+p).digest()[:16];
+      h=hashlib.pbkdf2_hmac('sha512',p,s,100000);
+      print('@ByteArray('+base64.b64encode(s).decode()+':'+base64.b64encode(h).decode()+')')"
+    stdin: "{{ vault_qbittorrent_password }}"
+  register: qbit_hash
+  changed_when: false
+  no_log: true
+
+- name: qBittorrent.conf (categorie et mot de passe)
+  ansible.builtin.template:
+    src: qBittorrent.conf.j2
+    dest: "{{ media_compose_dir }}/qbittorrent/qBittorrent/qBittorrent.conf"
+    owner: "{{ flixy_uid }}"
+    group: "{{ flixy_gid }}"
+    mode: "0640"
+    force: false
+  no_log: true
+
+- name: Fichier compose de la pile media
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ media_compose_dir }}/compose.yml"
+    mode: "0640"
+
+- name: Demarrer Radarr, Prowlarr et qBittorrent
+  community.docker.docker_compose_v2:
+    project_src: "{{ media_compose_dir }}"
+    state: present
+
+# --- attendre que les API repondent ---
+- name: Attendre l'API de Radarr
+  ansible.builtin.uri:
+    url: "{{ radarr_api }}/system/status"
+    headers:
+      X-Api-Key: "{{ vault_radarr_api_key }}"
+  register: attente
+  until: attente.status == 200
+  retries: 30
+  delay: 5
+  no_log: true
+
+- name: Attendre l'API de Prowlarr
+  ansible.builtin.uri:
+    url: "{{ prowlarr_api }}/system/status"
+    headers:
+      X-Api-Key: "{{ vault_prowlarr_api_key }}"
+  register: attente
+  until: attente.status == 200
+  retries: 30
+  delay: 5
+  no_log: true
+
+- name: Attendre l'API de qBittorrent
+  ansible.builtin.uri:
+    url: "{{ qbittorrent_api }}/app/version"
+    return_content: true
+  register: attente
+  until: attente.status == 200
+  retries: 30
+  delay: 5
+
+# --- etat complet par API (GET avant POST/PUT) ---
+- name: Etat de qBittorrent
+  ansible.builtin.include_tasks: qbittorrent.yml
+
+- name: Etat de Radarr
+  ansible.builtin.include_tasks: radarr.yml
+
+- name: Etat de Prowlarr
+  ansible.builtin.include_tasks: prowlarr.yml
+
+- name: Controle final de l'etat
+  ansible.builtin.include_tasks: controle.yml

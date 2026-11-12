@@ -1,38 +1,19 @@
-Role Name
-=========
+# Role media_stack (vm-media)
 
-A brief description of the role goes here.
+- compose `/opt/flixy-media/compose.yml` : Radarr (seul port publie, 7878, filtre
+  DOCKER-USER), Prowlarr et qBittorrent non publies, tous en PUID/PGID 1000
+- reseau docker a sous-reseau fixe (`media_docker_subnet`) : Ansible et le tunnel SSH
+  joignent les conteneurs par leur IP, sans publier de port
+- fichiers poses avant le 1er demarrage (`force: false`) : `config.xml` de Radarr et
+  Prowlarr (cle API depuis Vault), `qBittorrent.conf` (mot de passe en PBKDF2)
+- etat complet par API, toujours GET puis POST/PUT si besoin (`provider.yml`,
+  `config_unique.yml`) : categorie qBittorrent, dossier racine, profil, gestion des
+  medias, nommage, hote (auth + certificat), client qBittorrent, webhook, application
+  Radarr dans Prowlarr, indexeurs, synchro
+- controle final (`controle.yml`) : assert + resume pour `tests/preuves/radarr-etat.txt`
 
-Requirements
-------------
+Limite connue : les mots de passe (admin, qBittorrent) et le secret du webhook sont
+masques dans les GET, ils ne sont donc pas compares. Si on les change dans Vault, il
+faut supprimer l'element dans Radarr (ou le fichier de config) pour qu'il soit recree.
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
-
-Role Variables
---------------
-
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
-
-Dependencies
-------------
-
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
-
-Example Playbook
-----------------
-
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
-
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
-
-License
--------
-
-BSD
-
-Author Information
-------------------
-
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+Tunnel pour les WebUI : `ssh -L 9696:172.30.0.11:9696 -L 8080:172.30.0.12:8080 deploy@<vm-media>`

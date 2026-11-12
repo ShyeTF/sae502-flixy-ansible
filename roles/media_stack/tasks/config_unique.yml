@@ -1,0 +1,28 @@
+---
+# Objet de config unique (ex. /api/v3/config/naming) : GET, puis PUT seulement si
+# un des champs geres est different.
+# Variables : c_api, c_cle, c_endpoint, c_valeurs (compares), c_secrets (envoyes
+# seulement s'il y a un PUT, jamais compares car masques dans le GET)
+- name: "GET {{ c_endpoint }}"
+  ansible.builtin.uri:
+    url: "{{ c_api }}/{{ c_endpoint }}"
+    headers:
+      X-Api-Key: "{{ c_cle }}"
+    return_content: true
+  register: c_get
+  changed_when: false
+  no_log: true
+
+# si "actuel + voulu" == "actuel", il n'y a rien a changer
+- name: "PUT {{ c_endpoint }} si different"
+  ansible.builtin.uri:
+    url: "{{ c_api }}/{{ c_endpoint }}/{{ c_get.json.id }}"
+    method: PUT
+    headers:
+      X-Api-Key: "{{ c_cle }}"
+    body_format: json
+    body: "{{ c_get.json | combine(c_valeurs) | combine(c_secrets | default({})) }}"
+    status_code: [200, 202]
+  when: (c_get.json | combine(c_valeurs)) != c_get.json
+  changed_when: true
+  no_log: true

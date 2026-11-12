@@ -1,0 +1,56 @@
+---
+# Controle final : on relit tout, rien ne change ici (changed_when: false)
+- name: Controle - lecture de l'etat de Radarr
+  ansible.builtin.uri:
+    url: "{{ radarr_api }}/{{ item }}"
+    headers:
+      X-Api-Key: "{{ vault_radarr_api_key }}"
+    return_content: true
+  loop: [rootfolder, qualityprofile, downloadclient, indexer, notification]
+  register: etat
+  changed_when: false
+  no_log: true
+
+- name: Controle - ranger les resultats
+  ansible.builtin.set_fact:
+    etat_radarr: "{{ dict([ 'rootfolder', 'qualityprofile', 'downloadclient', 'indexer', 'notification'] | zip(etat.results | map(attribute='json'))) }}"
+  no_log: true
+
+- name: Controle - le client qBittorrent repond (test de Radarr)
+  ansible.builtin.uri:
+    url: "{{ radarr_api }}/downloadclient/test"
+    method: POST
+    headers:
+      X-Api-Key: "{{ vault_radarr_api_key }}"
+    body_format: json
+    body: "{{ etat_radarr.downloadclient | selectattr('name', 'equalto', radarr_download_client.name) | first }}"
+    status_code: [200]
+  changed_when: false
+  no_log: true
+
+- name: Controle - verifications
+  ansible.builtin.assert:
+    that:
+      - etat_radarr.rootfolder | selectattr('path', 'search', '^' ~ radarr_root_folder) | selectattr('accessible') | list | length == 1
+      - etat_radarr.qualityprofile | selectattr('name', 'equalto', radarr_quality_profile) | list | length == 1
+      - etat_radarr.downloadclient | selectattr('name', 'equalto', radarr_download_client.name) | selectattr('enable') | list | length == 1
+      - etat_radarr.notification | selectattr('name', 'equalto', radarr_webhook.name) | selectattr('onDownload') | list | length == 1
+    fail_msg: "L'etat de Radarr n'est pas complet, voir docs/radarr.md"
+    quiet: true
+
+- name: Controle - au moins un indexeur synchronise depuis Prowlarr
+  ansible.builtin.assert:
+    that: etat_radarr.indexer | length >= 1
+    fail_msg: "Aucun indexeur dans Radarr (synchro Prowlarr)"
+    quiet: true
+  when: prowlarr_indexers | length > 0
+
+- name: Controle - resume (a copier dans tests/preuves/radarr-etat.txt)
+  ansible.builtin.debug:
+    msg:
+      - "dossier racine : {{ etat_radarr.rootfolder | map(attribute='path') | join(', ') }}"
+      - "profil : {{ radarr_quality_profile }} (id {{ radarr_profile_id }})"
+      - "client : {{ etat_radarr.downloadclient | map(attribute='name') | join(', ') }} (test OK)"
+      - "indexeurs dans Radarr : {{ etat_radarr.indexer | map(attribute='name') | join(', ') | default('aucun', true) }}"
+      - "webhook : {{ etat_radarr.notification | map(attribute='name') | join(', ') }} -> {{ radarr_webhook.url }}"
+      - "{{ 'ATTENTION : prowlarr_indexers est vide, seule la demo de secours est possible' if prowlarr_indexers | length == 0 else 'indexeurs declares : ' ~ (prowlarr_indexers | map(attribute='name') | join(', ')) }}"

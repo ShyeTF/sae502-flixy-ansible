@@ -98,6 +98,7 @@ ports:
 # Reseau docker de vm-media : sous-reseau fixe pour joindre les conteneurs depuis
 # l'hote (taches API d'Ansible, tunnel SSH) sans publier leurs ports
 media_docker_subnet: 172.30.0.0/24
+media_docker_gateway: 172.30.0.1    # IP de l'hote vm-media sur ce reseau
 media_docker_ips:
   radarr: 172.30.0.10
   prowlarr: 172.30.0.11

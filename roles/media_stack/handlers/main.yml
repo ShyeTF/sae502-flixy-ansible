@@ -1,3 +1,2 @@
-#SPDX-License-Identifier: MIT-0
 ---
-# handlers file for roles/media_stack
+# pas de handler : docker_compose_v2 recree les conteneurs si le compose change

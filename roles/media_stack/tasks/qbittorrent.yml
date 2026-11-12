@@ -1,0 +1,33 @@
+---
+# Categorie radarr -> /data/flixy/downloads/radarr
+# (l'hote vm-media est dans la liste blanche de qBittorrent, pas besoin de login)
+- name: qBittorrent - categories actuelles
+  ansible.builtin.uri:
+    url: "{{ qbittorrent_api }}/torrents/categories"
+    return_content: true
+  register: qbit_categories
+  changed_when: false
+
+- name: qBittorrent - creer la categorie {{ qbittorrent_category }}
+  ansible.builtin.uri:
+    url: "{{ qbittorrent_api }}/torrents/createCategory"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      category: "{{ qbittorrent_category }}"
+      savePath: "{{ qbittorrent_category_path }}"
+  when: qbittorrent_category not in qbit_categories.json
+  changed_when: true
+
+- name: qBittorrent - corriger le chemin de la categorie
+  ansible.builtin.uri:
+    url: "{{ qbittorrent_api }}/torrents/editCategory"
+    method: POST
+    body_format: form-urlencoded
+    body:
+      category: "{{ qbittorrent_category }}"
+      savePath: "{{ qbittorrent_category_path }}"
+  when:
+    - qbittorrent_category in qbit_categories.json
+    - qbit_categories.json[qbittorrent_category].savePath != qbittorrent_category_path
+  changed_when: true

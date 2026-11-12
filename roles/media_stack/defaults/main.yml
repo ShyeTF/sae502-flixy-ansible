@@ -1,13 +1,16 @@
-#SPDX-License-Identifier: MIT-0
 ---
 # defaults file for roles/media_stack
 # Etat complet de Radarr recree par API (voir docs/radarr.md).
 # Chaque element : GET de la liste, recherche par nom, POST si absent, PUT si different.
 
-radarr_url: "http://localhost:{{ ports.radarr }}"
+# URL vues depuis l'hote vm-media (Ansible) : IP fixes des conteneurs, rien n'est publie
+radarr_api: "http://{{ media_docker_ips.radarr }}:{{ ports.radarr }}/api/v3"
+prowlarr_api: "http://{{ media_docker_ips.prowlarr }}:{{ ports.prowlarr }}/api/v1"
+qbittorrent_api: "http://{{ media_docker_ips.qbittorrent }}:{{ ports.qbittorrent }}/api/v2"
+
+# URL vues entre conteneurs (meme reseau docker, par nom)
 prowlarr_url_internal: "http://prowlarr:{{ ports.prowlarr }}"
 radarr_url_internal: "http://radarr:{{ ports.radarr }}"
-qbittorrent_url_internal: "http://qbittorrent:{{ ports.qbittorrent }}"
 
 # meme systeme de fichiers pour downloads et films -> deplacement/hardlink, pas de copie
 radarr_root_folder: "{{ data_path }}/films"
@@ -27,8 +30,8 @@ radarr_download_client:
 
 radarr_webhook:
   name: Flixy
-  url: "https://{{ app_ip }}{{ webhook_path }}"
-  method: POST
+  url: "https://{{ flixy_public_host }}{{ webhook_path }}"
+  method: 1            # 1 = POST
   on_download: true
   on_upgrade: true
   on_movie_delete: true
@@ -36,19 +39,28 @@ radarr_webhook:
 
 # config/mediamanagement
 radarr_media_management:
-  renameMovies: true
   copyUsingHardlinks: true
   setPermissionsLinux: true
-  chmodFolder: "{{ data_mode }}"
-  chownGroup: "{{ flixy_gid }}"
+  chmodFolder: "775"     # le bit setgid est deja pose sur les dossiers parents par le role nfs
+  chownGroup: "{{ flixy_gid | string }}"
 
 # config/naming
-radarr_movie_folder_format: "{Movie Title} ({Release Year})"
-radarr_movie_file_format: "{Movie Title} ({Release Year}) {Quality Full}"
+radarr_naming:
+  renameMovies: true
+  movieFolderFormat: "{Movie Title} ({Release Year})"
+  standardMovieFormat: "{Movie Title} ({Release Year}) {Quality Full}"
 
 # config/host : le cert de nginx est auto-signe
 radarr_certificate_validation: disabledForLocalAddresses
 
-# Prowlarr : application Radarr en synchro complete, indexeurs a choisir
+# Prowlarr : application Radarr en synchro complete
 prowlarr_app_sync_level: fullSync
-prowlarr_indexers: []   # a completer : indexeurs publics, contenus libres uniquement
+
+# Indexeurs de Prowlarr. A DECIDER (Leo) : uniquement des indexeurs publics qui
+# proposent des contenus libres (voir docs/medias.md). Format d'une entree :
+#   - name: "Nom affiche"
+#     definition: "nom de la definition Prowlarr (champ definitionName du schema)"
+#     fields: {}            # champs propres a l'indexeur (baseUrl...), souvent vide
+# Tant que la liste est vide, le controle final previent mais n'echoue pas :
+# seule la demo de secours (import + webhook) est possible.
+prowlarr_indexers: []

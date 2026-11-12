@@ -1,0 +1,93 @@
+---
+# "Provider" de Radarr / Prowlarr (client de telechargement, webhook, application,
+# indexeur) : liste -> recherche par nom -> POST si absent, PUT si different.
+# Variables :
+#   p_api, p_cle, p_endpoint   ex. radarr_api, cle, "downloadclient"
+#   p_nom                      nom de l'element
+#   p_schema_cle / p_schema    comment trouver le modele dans <endpoint>/schema
+#                              (implementation, ou definitionName pour un indexeur)
+#   p_champs                   champs du 1er niveau (enable, onDownload...)
+#   p_fields                   champs de la liste "fields" (name/value)
+#   p_secrets                  noms des fields masques dans le GET, non compares
+#   p_query                    ex. "?forceSave=true"
+- name: "{{ p_endpoint }} - liste actuelle"
+  ansible.builtin.uri:
+    url: "{{ p_api }}/{{ p_endpoint }}"
+    headers:
+      X-Api-Key: "{{ p_cle }}"
+    return_content: true
+  register: p_liste
+  changed_when: false
+  no_log: true
+
+- name: "{{ p_endpoint }} - element {{ p_nom }}"
+  ansible.builtin.set_fact:
+    p_actuel: "{{ p_liste.json | selectattr('name', 'equalto', p_nom) | first | default({}) }}"
+  no_log: true
+
+- name: "{{ p_endpoint }} - modele (schema) si absent"
+  ansible.builtin.uri:
+    url: "{{ p_api }}/{{ p_endpoint }}/schema"
+    headers:
+      X-Api-Key: "{{ p_cle }}"
+    return_content: true
+  register: p_schemas
+  changed_when: false
+  when: p_actuel == {}
+  no_log: true
+
+- name: "{{ p_endpoint }} - base de travail"
+  ansible.builtin.set_fact:
+    p_base: >-
+      {{ p_actuel if p_actuel != {} else
+         (p_schemas.json | selectattr(p_schema_cle | default('implementation'), 'equalto', p_schema) | first) }}
+  no_log: true
+
+# fields voulus en liste name/value, fusionnes par nom avec ceux de la base
+- name: "{{ p_endpoint }} - corps de la requete"
+  ansible.builtin.set_fact:
+    p_corps: >-
+      {{ p_base | combine(p_champs | default({})) | combine({'name': p_nom,
+         'fields': [p_base.fields, p_fields | default({}) | dict2items(key_name='name', value_name='value')]
+                   | community.general.lists_mergeby('name')}) }}
+    p_fields_actuels: >-
+      {{ (p_actuel.fields | default([])) | selectattr('value', 'defined')
+         | items2dict(key_name='name', value_name='value') }}
+    p_fields_compares: >-
+      {{ p_fields | default({}) | dict2items | rejectattr('key', 'in', p_secrets | default([])) | items2dict }}
+  no_log: true
+
+- name: "{{ p_endpoint }} - creer {{ p_nom }}"
+  ansible.builtin.uri:
+    url: "{{ p_api }}/{{ p_endpoint }}{{ p_query | default('') }}"
+    method: POST
+    headers:
+      X-Api-Key: "{{ p_cle }}"
+    body_format: json
+    body: "{{ p_corps }}"
+    status_code: [200, 201, 202]
+  when: p_actuel == {}
+  changed_when: true
+  register: p_post
+  no_log: true
+
+- name: "{{ p_endpoint }} - modifier {{ p_nom }} si different"
+  ansible.builtin.uri:
+    url: "{{ p_api }}/{{ p_endpoint }}/{{ p_actuel.id }}{{ p_query | default('') }}"
+    method: PUT
+    headers:
+      X-Api-Key: "{{ p_cle }}"
+    body_format: json
+    body: "{{ p_corps }}"
+    status_code: [200, 202]
+  when:
+    - p_actuel != {}
+    - (p_actuel | combine(p_champs | default({}))) != p_actuel
+      or (p_fields_actuels | combine(p_fields_compares)) != p_fields_actuels
+  changed_when: true
+  register: p_put
+  no_log: true
+
+- name: "{{ p_endpoint }} - noter s'il y a eu un changement"
+  ansible.builtin.set_fact:
+    p_a_change: "{{ (p_post is changed) or (p_put is changed) }}"

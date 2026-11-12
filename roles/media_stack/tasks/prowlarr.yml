@@ -1,0 +1,63 @@
+---
+# Les indexeurs sont declares dans Prowlarr, qui les pousse dans Radarr.
+
+- name: Prowlarr - authentification Forms
+  ansible.builtin.include_tasks: config_unique.yml
+  vars:
+    c_api: "{{ prowlarr_api }}"
+    c_cle: "{{ vault_prowlarr_api_key }}"
+    c_endpoint: config/host
+    c_valeurs:
+      authenticationMethod: forms
+      authenticationRequired: enabled
+      username: "{{ vault_arr_admin_user }}"
+    c_secrets:
+      password: "{{ vault_arr_admin_password }}"
+      passwordConfirmation: "{{ vault_arr_admin_password }}"
+
+- name: Prowlarr - application Radarr
+  ansible.builtin.include_tasks: provider.yml
+  vars:
+    p_api: "{{ prowlarr_api }}"
+    p_cle: "{{ vault_prowlarr_api_key }}"
+    p_endpoint: applications
+    p_nom: Radarr
+    p_schema: Radarr
+    p_champs:
+      syncLevel: "{{ prowlarr_app_sync_level }}"
+    p_fields:
+      prowlarrUrl: "{{ prowlarr_url_internal }}"
+      baseUrl: "{{ radarr_url_internal }}"
+      apiKey: "{{ vault_radarr_api_key }}"
+    p_secrets: [apiKey]
+
+- name: Prowlarr - garder le resultat de l'application
+  ansible.builtin.set_fact:
+    prowlarr_a_synchroniser: "{{ p_a_change }}"
+
+- name: Prowlarr - indexeurs
+  ansible.builtin.include_tasks: indexeur.yml
+  loop: "{{ prowlarr_indexers }}"
+  loop_control:
+    loop_var: indexeur
+    label: "{{ indexeur.name }}"
+
+# synchro seulement si quelque chose a change (sinon le 2e passage serait "changed")
+- name: Prowlarr - synchro des indexeurs vers Radarr
+  ansible.builtin.uri:
+    url: "{{ prowlarr_api }}/command"
+    method: POST
+    headers:
+      X-Api-Key: "{{ vault_prowlarr_api_key }}"
+    body_format: json
+    body:
+      name: ApplicationIndexerSync
+    status_code: [200, 201]
+  when: prowlarr_a_synchroniser | bool
+  changed_when: true
+  no_log: true
+
+- name: Prowlarr - laisser le temps a la synchro
+  ansible.builtin.pause:
+    seconds: 15
+  when: prowlarr_a_synchroniser | bool
