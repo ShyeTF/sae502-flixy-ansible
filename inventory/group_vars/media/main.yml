@@ -5,12 +5,14 @@ docker_user_regles:
     port: "{{ ports.radarr }}"
     sources: ["{{ app_ip }}"]
 
-# Indexeur Prowlarr : Internet Archive (archive.org), indexeur public et legal.
-# Definition "internetarchive" presente dans Prowlarr 2.6.5 (depot Prowlarr/Indexers v11).
-# Les films du domaine public / Creative Commons y sont publies en torrent.
-prowlarr_indexers:
-  - name: Internet Archive
-    definition: internetarchive
-    fields:
-      titleOnly: true
-      noMagnet: false
+# Indexeur Prowlarr : Internet Archive teste le 12/11/2026, NON retenu.
+# La definition "internetarchive" existe bien dans Prowlarr 2.6.5, mais archive.org
+# ne repond pas aux requetes qui portent l'user-agent de Prowlarr (time-out apres 60 s,
+# alors que la meme requete avec curl repond en moins de 5 s). Prowlarr refuse donc
+# d'enregistrer l'indexeur. On garde la liste vide : demo de secours (import + webhook).
+# Pour reessayer plus tard :
+# prowlarr_indexers:
+#   - name: Internet Archive
+#     definition: internetarchive
+#     fields: { titleOnly: true }
+prowlarr_indexers: []

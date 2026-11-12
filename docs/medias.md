@@ -38,3 +38,20 @@ La démo import + webhook (si la recherche ou le téléchargement externe ne mar
 jour J) utilise ces mêmes fichiers. Procédure dans `docs/secours.md`.
 
 Ces mentions de licence et d'attribution sont aussi rappelées sur la diapo de la démo.
+
+## Indexeur Prowlarr (test du 12/11/2026)
+
+J'ai regardé s'il existait un indexeur public et légal pour chercher ces films
+directement depuis Radarr :
+
+- Prowlarr 2.6.5 a bien une définition **Internet Archive** (`internetarchive`,
+  type public, archive.org publie ses films en torrent).
+- Mais à l'enregistrement, Prowlarr teste l'indexeur et le test échoue
+  (`Http request timed out`). Depuis le conteneur prowlarr :
+  - `curl` normal sur `https://archive.org/advancedsearch.php` : réponse 200 en moins de 5 s ;
+  - même requête avec l'user-agent de Prowlarr : aucune réponse au bout de 60 s.
+  archive.org ne répond donc pas à Prowlarr.
+
+Conclusion : `prowlarr_indexers` reste vide et la démo passe par le scénario de
+secours (dépôt du fichier dans `import/`, import Radarr, webhook vers l'api), voir
+`docs/secours.md`.
