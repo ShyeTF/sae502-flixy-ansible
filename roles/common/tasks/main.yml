@@ -2,11 +2,80 @@
 # tasks file for common
 - name: Installer les paquets de base
   ansible.builtin.apt:
-    name: [sudo, curl, ufw, rsync, iptables-persistent]
+    name: "{{ common_paquets }}"
     state: present
     update_cache: true
-  become: true
+    cache_valid_time: 3600
 
-- name: A faire
-  ansible.builtin.debug:
-    msg: "common : user deploy + cle SSH, IP fixe, UFW (22 depuis {{ admin_ip }}, defaut deny)"
+# Remarque : sur Debian 13, le paquet ufw "Breaks" iptables-persistent, on ne peut
+# pas avoir les deux. Les regles DOCKER-USER sont rendues persistantes par un petit
+# service systemd (role docker), pas par iptables-persistent.
+
+- name: Utilisateur deploy
+  ansible.builtin.user:
+    name: "{{ deploy_user }}"
+    shell: /bin/bash
+    groups: sudo
+    append: true
+
+- name: Cle SSH du noeud de controle pour deploy
+  ansible.posix.authorized_key:
+    user: "{{ deploy_user }}"
+    key: "{{ deploy_ssh_pubkey }}"
+    exclusive: true
+
+- name: Sudo sans mot de passe pour deploy (Ansible)
+  ansible.builtin.copy:
+    dest: /etc/sudoers.d/90-deploy
+    content: "{{ deploy_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    owner: root
+    group: root
+    mode: "0440"
+    validate: visudo -cf %s
+
+- name: SSH par cle uniquement, pas de root
+  ansible.builtin.template:
+    src: sshd-flixy.conf.j2
+    dest: /etc/ssh/sshd_config.d/10-flixy.conf
+    owner: root
+    group: root
+    mode: "0644"
+    validate: sshd -t -f %s
+  notify: Recharger ssh
+
+- name: IP fixe (optionnel)
+  ansible.builtin.template:
+    src: interfaces.j2
+    dest: /etc/network/interfaces
+    owner: root
+    group: root
+    mode: "0644"
+  when: common_ip_fixe | bool
+  notify: Prevenir reboot reseau
+
+# --- pare-feu UFW ---
+# l'ordre compte : on autorise SSH AVANT d'activer UFW, sinon on se coupe
+- name: UFW - SSH depuis le noeud de controle
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+    from_ip: "{{ item }}"
+    comment: ssh admin
+  loop: "{{ admin_ips }}"
+
+- name: UFW - SSH depuis vm-app vers vm-media (copie des sauvegardes)
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+    from_ip: "{{ app_ip }}"
+    comment: rsync sauvegardes
+  when: "'media' in group_names"
+
+- name: UFW - politique par defaut et activation
+  community.general.ufw:
+    state: enabled
+    direction: incoming
+    policy: deny
+    logging: "low"

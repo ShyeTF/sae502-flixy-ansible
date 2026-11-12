@@ -1,3 +1,9 @@
-#SPDX-License-Identifier: MIT-0
 ---
-# handlers file for roles/common
+- name: Recharger ssh
+  ansible.builtin.systemd_service:
+    name: ssh
+    state: reloaded
+
+- name: Prevenir reboot reseau
+  ansible.builtin.debug:
+    msg: "/etc/network/interfaces modifie : la nouvelle IP sera prise au prochain reboot"

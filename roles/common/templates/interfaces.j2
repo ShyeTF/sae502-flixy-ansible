@@ -1,0 +1,11 @@
+# {{ ansible_managed }}
+source /etc/network/interfaces.d/*
+
+auto lo
+iface lo inet loopback
+
+auto {{ common_interface }}
+iface {{ common_interface }} inet static
+    address {{ ansible_host }}/{{ net_prefix }}
+    gateway {{ net_gateway }}
+    dns-nameservers {{ net_dns }}
