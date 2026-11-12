@@ -1,0 +1,9 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Sauvegarde Flixy (dump PostgreSQL + copie MinIO, jeu identifie)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/flixy-backup

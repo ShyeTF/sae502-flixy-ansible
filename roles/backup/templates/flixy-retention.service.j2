@@ -1,0 +1,7 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Retention des sauvegardes Flixy
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/flixy-retention

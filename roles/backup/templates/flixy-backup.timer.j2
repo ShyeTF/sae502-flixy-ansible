@@ -1,0 +1,10 @@
+# {{ ansible_managed }}
+[Unit]
+Description=Sauvegarde Flixy quotidienne
+
+[Timer]
+OnCalendar={{ backup_timer_oncalendar }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,38 +1,18 @@
-Role Name
-=========
+# Role backup
 
-A brief description of the role goes here.
+vm-app :
+- `/usr/local/sbin/flixy-backup [backup_id]` : api arretee, `pg_dump -Fc` + lignes par
+  table, `mc mirror` du bucket dans le dossier du jeu, api relancee, `SHA256SUMS`,
+  `manifest.json`, `rsync` vers vm-media (manifest en dernier)
+- timer `flixy-backup.timer` (tous les jours a 3 h), meme script que `backup.yml`
+- cle SSH `/root/.ssh/flixy-backup`
 
-Requirements
-------------
+vm-media :
+- compte `flixy-backup`, cle de vm-app limitee a `rrsync /srv/backups/flixy`
+  (`restrict`, pas de shell)
+- `/srv/backups/flixy` en 0700, hors export NFS
+- `/usr/local/sbin/flixy-retention` + timer a 4 h : supprime les jeux de plus de 7 jours,
+  garde toujours le dernier jeu complet
 
-Any pre-requisites that may not be covered by Ansible itself or the role should be mentioned here. For instance, if the role uses the EC2 module, it may be a good idea to mention in this section that the boto package is required.
-
-Role Variables
---------------
-
-A description of the settable variables for this role should go here, including any variables that are in defaults/main.yml, vars/main.yml, and any variables that can/should be set via parameters to the role. Any variables that are read from other roles and/or the global scope (ie. hostvars, group vars, etc.) should be mentioned here as well.
-
-Dependencies
-------------
-
-A list of other roles hosted on Galaxy should go here, plus any details in regards to parameters that may need to be set for other roles, or variables that are used from other roles.
-
-Example Playbook
-----------------
-
-Including an example of how to use your role (for instance, with variables passed in as parameters) is always nice for users too:
-
-    - hosts: servers
-      roles:
-         - { role: username.rolename, x: 42 }
-
-License
--------
-
-BSD
-
-Author Information
-------------------
-
-An optional section for the role authors to include contact information, or a website (HTML is not allowed).
+Un jeu : `postgres.dump`, `minio/`, `lignes.txt`, `objets.txt`, `SHA256SUMS`,
+`manifest.json` (le manifest contient le sha256 de `SHA256SUMS`).

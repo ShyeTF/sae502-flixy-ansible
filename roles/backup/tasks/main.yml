@@ -1,27 +1,101 @@
 ---
 # tasks file for backup
-- name: Creer le dossier des sauvegardes (vm-media)
-  ansible.builtin.file:
-    path: "{{ backup_dir }}"
-    state: directory
-    mode: "0700"
-  become: true
-  when: "'media' in group_names"
+# Ordre important : la cle est creee sur vm-app avant d'etre autorisee sur vm-media
+# (dans un play, chaque tache passe sur les deux VM avant la suivante).
 
-- name: Creer le dossier de preparation (vm-app)
+# ===== vm-app : preparation + cle SSH =====
+- name: Dossier de preparation (vm-app)
   ansible.builtin.file:
     path: "{{ backup_staging_dir }}"
     state: directory
     mode: "0700"
-  become: true
   when: "'app' in group_names"
 
-- name: A faire - script et timer
-  ansible.builtin.debug:
-    msg: "vm-app : /usr/local/sbin/flixy-backup [backup_id] (memes etapes que backup.yml) + timer systemd {{ backup_timer_oncalendar }}"
+- name: Cle SSH de sauvegarde (vm-app)
+  ansible.builtin.command:
+    cmd: ssh-keygen -t ed25519 -N "" -C flixy-backup@{{ inventory_hostname }} -f {{ backup_cle_ssh }}
+    creates: "{{ backup_cle_ssh }}"
   when: "'app' in group_names"
 
-- name: A faire - acces SSH restreint
-  ansible.builtin.debug:
-    msg: "vm-media : utilisateur backup, cle de vm-app limitee a rsync dans {{ backup_dir }}"
+- name: Lire la cle publique (vm-app)
+  ansible.builtin.slurp:
+    src: "{{ backup_cle_ssh }}.pub"
+  register: cle_backup
+  when: "'app' in group_names"
+
+- name: vm-media dans les known_hosts de root (vm-app)
+  ansible.builtin.known_hosts:
+    path: /root/.ssh/known_hosts
+    name: "{{ media_ip }}"
+    key: "{{ media_ip }} ssh-ed25519 {{ hostvars[groups['media'][0]].ansible_facts.ssh_host_key_ed25519_public }}"
+  when: "'app' in group_names"
+
+# ===== vm-media : compte limite a rsync dans le dossier des jeux =====
+- name: Utilisateur {{ backup_user }} (vm-media)
+  ansible.builtin.user:
+    name: "{{ backup_user }}"
+    system: true
+    shell: /bin/sh
+    home: "/var/lib/{{ backup_user }}"
+    create_home: true
   when: "'media' in group_names"
+
+- name: Dossier des sauvegardes, hors export NFS (vm-media)
+  ansible.builtin.file:
+    path: "{{ backup_dir }}"
+    state: directory
+    owner: "{{ backup_user }}"
+    group: "{{ backup_user }}"
+    mode: "0700"
+  when: "'media' in group_names"
+
+# rrsync (fourni avec rsync) : la cle ne peut faire que du rsync dans backup_dir
+- name: Cle de vm-app limitee a rrsync (vm-media)
+  ansible.posix.authorized_key:
+    user: "{{ backup_user }}"
+    key: "{{ hostvars[groups['app'][0]].cle_backup.content | b64decode }}"
+    key_options: 'command="/usr/bin/rrsync {{ backup_dir }}",restrict'
+    exclusive: true
+  when: "'media' in group_names"
+
+# ===== scripts et timers =====
+- name: Script flixy-backup (vm-app)
+  ansible.builtin.template:
+    src: flixy-backup.sh.j2
+    dest: /usr/local/sbin/flixy-backup
+    mode: "0750"
+  when: "'app' in group_names"
+
+- name: Script flixy-retention (vm-media)
+  ansible.builtin.template:
+    src: flixy-retention.sh.j2
+    dest: /usr/local/sbin/flixy-retention
+    mode: "0750"
+  when: "'media' in group_names"
+
+- name: Service et timer systemd
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "/etc/systemd/system/{{ item.dest }}"
+    mode: "0644"
+  loop: "{{ backup_units[group_names | intersect(['app', 'media']) | first] }}"
+  vars:
+    backup_units:
+      app:
+        - { src: flixy-backup.service.j2, dest: flixy-backup.service }
+        - { src: flixy-backup.timer.j2, dest: flixy-backup.timer }
+      media:
+        - { src: flixy-retention.service.j2, dest: flixy-retention.service }
+        - { src: flixy-retention.timer.j2, dest: flixy-retention.timer }
+  loop_control:
+    label: "{{ item.dest }}"
+  notify: Recharger systemd
+
+- name: Appliquer daemon-reload avant d'activer les timers
+  ansible.builtin.meta: flush_handlers
+
+- name: Activer le timer
+  ansible.builtin.systemd_service:
+    name: "{{ 'flixy-backup.timer' if 'app' in group_names else 'flixy-retention.timer' }}"
+    enabled: true
+    state: started

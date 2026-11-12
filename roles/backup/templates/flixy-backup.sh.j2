@@ -1,0 +1,100 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# Sauvegarde Flixy : un jeu identifie = dump PostgreSQL + copie MinIO pris au meme
+# moment (api arretee le temps des deux), SHA256SUMS, puis manifest.json en dernier.
+# Usage : flixy-backup [backup_id]      (lance par le timer ou par backup.yml)
+set -euo pipefail
+
+ID="${1:-$(date +{{ backup_id_format }})}"
+COMPOSE={{ compose_dir }}
+STAGE={{ backup_staging_dir }}/$ID
+DEST={{ backup_user }}@{{ media_ip }}
+SSH="ssh -i {{ backup_cle_ssh }} -o BatchMode=yes"
+
+echo "== sauvegarde du jeu $ID"
+if [ -e {{ restore_lock_file }} ]; then
+  echo "restauration en cours ({{ restore_lock_file }}), pas de sauvegarde"
+  exit 1
+fi
+
+# 1. dossier de preparation
+mkdir -p "$STAGE/minio"
+chmod 700 "$STAGE"
+cd "$COMPOSE"
+
+# 2. pause des ecritures (on ne relance l'api que si elle tournait avant)
+API_TOURNAIT=$(docker compose ps --status running -q api)
+relancer_api() {
+  if [ -n "$API_TOURNAIT" ]; then
+    docker compose start api > /dev/null
+    echo "api relancee"
+  fi
+}
+trap relancer_api EXIT
+docker compose stop api > /dev/null
+echo "api arretee, debut du dump et de la copie"
+
+# 3. dump PostgreSQL + nombre de lignes par table
+docker compose exec -T postgres pg_dump -Fc -U {{ postgres_user }} {{ postgres_db }} > "$STAGE/postgres.dump"
+docker compose exec -T postgres psql -U {{ postgres_user }} -d {{ postgres_db }} -At -F ' ' -c "
+  select table_name,
+         (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from public.%I', table_name), false, true, '')))[1]::text
+  from information_schema.tables
+  where table_schema = 'public' and table_type = 'BASE TABLE'
+  order by 1" > "$STAGE/lignes.txt"
+
+# 4. copie du bucket dans le dossier du jeu (pas un miroir commun)
+docker run --rm --network flixy_interne --env-file "$COMPOSE/mc.env" \
+  -v "$STAGE/minio:/backup" {{ images.mc }} mirror --quiet local/{{ minio_bucket }} /backup
+(cd "$STAGE/minio" && find . -type f -printf '%P %s\n' | sort) > "$STAGE/objets.txt"
+
+# 5. relance des ecritures
+relancer_api
+trap - EXIT
+
+# 6. SHA256SUMS puis manifest.json
+cd "$STAGE"
+find . -type f ! -name SHA256SUMS ! -name manifest.json -printf '%P\n' | sort | xargs -r -d '\n' sha256sum > SHA256SUMS
+
+python3 - "$ID" <<'PY'
+import json, subprocess, sys, datetime, hashlib, os
+
+backup_id = sys.argv[1]
+
+def id_image(image):
+    try:
+        out = subprocess.run(["docker", "image", "inspect", image], capture_output=True, text=True, check=True).stdout
+        return json.loads(out)[0]["Id"]
+    except Exception:
+        return None
+
+images = {{ images | to_json }}
+lignes = {}
+for l in open("lignes.txt"):
+    if l.strip():
+        table, nb = l.split()
+        lignes[table] = int(nb)
+objets = [l for l in open("objets.txt") if l.strip()]
+
+manifest = {
+    "backup_id": backup_id,
+    "date": datetime.datetime.now().astimezone().isoformat(timespec="seconds"),
+    "flixy_image_tag": "{{ flixy_image_tag }}",
+    "images": {nom: {"image": img, "id": id_image(img)} for nom, img in images.items()
+               if nom in ("web", "api", "migrator", "postgres", "minio", "valkey")},
+    "code": {{ flixy_code_refs | to_json }},
+    "lignes_par_table": lignes,
+    "nb_objets": len(objets),
+    "taille_dump": os.path.getsize("postgres.dump"),
+    "sha256_SHA256SUMS": hashlib.sha256(open("SHA256SUMS", "rb").read()).hexdigest(),
+}
+json.dump(manifest, open("manifest.json", "w"), indent=2)
+PY
+
+# 7. envoi sur vm-media, manifest.json en dernier
+rsync -a -e "$SSH" --exclude manifest.json "$STAGE/" "$DEST:$ID/"
+rsync -a -e "$SSH" "$STAGE/manifest.json" "$DEST:$ID/"
+
+# 8. menage
+rm -rf "$STAGE"
+echo "== jeu $ID envoye sur {{ media_ip }}:{{ backup_dir }}/$ID"

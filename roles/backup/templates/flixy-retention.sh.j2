@@ -1,0 +1,21 @@
+#!/bin/bash
+# {{ ansible_managed }}
+# Supprime les jeux de plus de {{ backup_retention_days }} jours, mais garde TOUJOURS
+# le dernier jeu complet (avec manifest.json), meme s'il est vieux.
+set -euo pipefail
+cd {{ backup_dir }}
+
+dernier=""
+for d in $(ls -1 | sort); do
+  [ -f "$d/manifest.json" ] && dernier="$d"
+done
+echo "dernier jeu complet : ${dernier:-aucun}"
+
+find . -mindepth 1 -maxdepth 1 -type d -mtime +{{ backup_retention_days }} -printf '%P\n' | sort | while read -r d; do
+  if [ "$d" = "$dernier" ]; then
+    echo "garde $d (dernier jeu complet)"
+    continue
+  fi
+  rm -rf -- "$d"
+  echo "supprime $d"
+done
