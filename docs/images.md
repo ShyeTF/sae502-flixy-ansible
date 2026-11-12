@@ -98,6 +98,20 @@ docker image inspect -f '{{.Id}} {{index .Config.Labels "org.opencontainers.imag
 - Le clone en lecture seule demande que le nœud de contrôle ait accès en lecture aux dépôts
   (compte de Léo).
 
+## Source utilisée pour la copie SAE (12/11/2026)
+
+Les images ont été construites à partir d'**archives `git archive` au commit exact**,
+faites en lecture seule depuis des clones déjà présents sur la machine de rebond
+(aucun checkout, fetch ni commit dans ces clones, aucune écriture sur le GitLab kineflix) :
+
+| archive (dans `.src/`, non versionné) | commit | sha256 de l'archive |
+|---|---|---|
+| `back-44e371bb29f15637114ce78cac4e7aa0da9c1b55.tar.gz` | back-end 44e371bb | `540aa728965d5dfca5b919531462063f8a56522cf290efbbebc01c530d8ce14b` |
+| `front-feb36a6a530bd08108c94ca4b69b1aea1db65864.tar.gz` | front-end feb36a6a | `c48708ba7e65c61a92b28894ed5d06938e461d405b6ed6c1e8423f62c575c163` |
+
+Quand l'archive est présente, le rôle `flixy_app` ne clone rien : il l'envoie sur
+vm-app, l'extrait et lance `docker build`.
+
 ## Si le noeud de controle n'a pas acces au GitLab
 
 Le clone se fait en lecture seule. Si la machine qui lance Ansible n'a pas d'accès
