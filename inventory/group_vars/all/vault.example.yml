@@ -1,15 +1,41 @@
 ---
 # Exemple de fichier de secrets, valeurs FACTICES.
-# Copier en vault.yml puis chiffrer :
+# Copier en vault.yml, remplacer TOUTES les valeurs, puis chiffrer :
 #   cp vault.example.yml vault.yml && ansible-vault encrypt vault.yml
+#
+# Ce sont des secrets de TEST, propres a la copie SAE. Ne jamais reprendre
+# les secrets de la Flixy en service (base, cles, comptes...).
+# Pour generer une valeur : openssl rand -hex 24
+
+# --- vm-app : donnees ---
 vault_postgres_password: "changeme-postgres"
+vault_valkey_password: "changeme-valkey"
 vault_minio_root_user: "flixy-minio"
-vault_minio_root_password: "changeme-minio"
-vault_radarr_api_key: "00000000000000000000000000000000"
-vault_prowlarr_api_key: "00000000000000000000000000000000"
+vault_minio_root_password: "changeme-minio-12345"   # 8 caracteres minimum
+
+# --- api Flixy ---
+# 256 a 512 caracteres : openssl rand -hex 150
+vault_jwt_secret: "changeme-jwt-256-caracteres-minimum"
+vault_tmdb_api_key: "changeme-tmdb"          # cle TMDB de test (compte perso, pas celle de la prod)
+# Turnstile : cles de test officielles de Cloudflare (le captcha passe toujours)
+vault_turnstile_site_key: "1x00000000000000000000AA"
+vault_turnstile_secret: "1x0000000000000000000000000000000AA"
+# Valeurs obligatoires pour que l'api demarre, non utilisees dans la demo (factices)
+vault_cloudflare_secret: "inutilise-sae"
+vault_google_client_id: "inutilise-sae"
+vault_google_client_secret: "inutilise-sae"
+vault_apple_client_id: "inutilise-sae"
+vault_apple_team_id: "inutilise-sae"
+vault_apple_key_id: "inutilise-sae"
+vault_apple_private_key: "inutilise-sae"
+vault_sonarr_secret: "inutilise-sae"
+vault_sonarr_webhook_secret: "inutilise-sae"
+
+# --- vm-media : pile media ---
+vault_radarr_api_key: "00000000000000000000000000000000"     # 32 caracteres hexa
+vault_prowlarr_api_key: "00000000000000000000000000000000"   # 32 caracteres hexa
+vault_arr_admin_user: "admin"
+vault_arr_admin_password: "changeme-arr"
+vault_qbittorrent_user: "admin"
 vault_qbittorrent_password: "changeme-qbit"
-vault_tmdb_api_key: "changeme-tmdb"
 vault_radarr_webhook_secret: "changeme-webhook"
-vault_jwt_secret: "changeme-jwt"
-vault_gitlab_registry_user: "changeme-deploy-token-user"   # deploy token GitLab, read_registry
-vault_gitlab_registry_token: "changeme-deploy-token"

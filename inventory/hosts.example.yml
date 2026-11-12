@@ -1,17 +1,23 @@
 # Inventaire d'exemple. Copier en hosts.yml (non versionne) et adapter.
 # Les deux VM sont en Debian 13 (trixie), IP fixes en /24.
+#
+# A DECIDER (Leo) : 192.168.1.50 est deja pris par un switch sur le LAN,
+# donc les IP de vm-app et vm-media sont a choisir. Les valeurs ci-dessous
+# sont des exemples (memes valeurs que app_ip / media_ip dans group_vars).
+#
+# 1er lancement sur une VM toute neuve : l'utilisateur deploy n'existe pas encore,
+# on passe par le compte cree a l'installation :
+#   ansible-playbook playbooks/deploy.yml -e ansible_user=<compte_installation> -k -K --ask-vault-pass
 all:
   vars:
     ansible_user: deploy
     ansible_python_interpreter: /usr/bin/python3
-    net_prefix: 24
-    net_gateway: 192.168.1.1
   children:
     app:
       hosts:
         vm-app:
-          ansible_host: 192.168.1.50
+          ansible_host: "{{ app_ip }}"
     media:
       hosts:
         vm-media:
-          ansible_host: 192.168.1.51
+          ansible_host: "{{ media_ip }}"

@@ -15,3 +15,6 @@ inventory/hosts.yml
 # divers
 *.retry
 .DS_Store
+
+# code Flixy clone pour construire les images (jamais commite)
+.src/

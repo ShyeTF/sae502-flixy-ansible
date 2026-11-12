@@ -1,5 +1,9 @@
 ---
+# versions testees (ansible-core 2.22)
 collections:
   - name: ansible.posix       # module mount
-  - name: community.docker    # docker_compose_v2
-  - name: community.general
+    version: ">=2.0.0"
+  - name: community.docker    # docker_compose_v2, docker_image_build
+    version: ">=5.0.0"
+  - name: community.general   # ufw
+    version: ">=10.0.0"

@@ -3,11 +3,30 @@
 
 debian_release: trixie
 
-# Adresses utilisees pour le filtrage (exemple, a adapter)
-admin_ip: 192.168.1.20           # Mac, noeud de controle Ansible (SSH)
-app_ip: 192.168.1.50             # vm-app
-media_ip: 192.168.1.51           # vm-media
+# ---------------------------------------------------------------------------
+# Reseau. A DECIDER (Leo) : les valeurs sont des exemples.
+# - 192.168.1.50 repond deja sur le LAN (c'est un switch), il faut une autre IP pour vm-app
+# - admin_ip = la machine qui lance Ansible (Mac, ou une machine de rebond)
+# ---------------------------------------------------------------------------
+admin_ip: 192.168.1.20           # A DECIDER : noeud de controle Ansible (SSH)
+admin_ips:                        # toutes les IP autorisees en SSH (UFW)
+  - "{{ admin_ip }}"
+app_ip: 192.168.1.50             # A DECIDER : vm-app (192.168.1.50 est pris par un switch)
+media_ip: 192.168.1.51           # A DECIDER : vm-media
+net_prefix: 24
+net_gateway: 192.168.1.1
+net_dns: 192.168.1.1
+lan_cidr: 192.168.1.0/24         # qui a le droit d'ouvrir le site en HTTPS
 webhook_allowed_ip: "{{ media_ip }}"   # seul Radarr peut appeler /v1/radarr/webhook
+
+# Adresse du site (pas de nom de domaine pour la copie SAE, on reste sur l'IP)
+flixy_public_host: "{{ app_ip }}"
+
+# Ressources des VM (pour info / creation des VM sur Proxmox, pas utilise par les roles)
+# A DECIDER (Leo) : le Proxmox n'a que ~5 Go de RAM libre aujourd'hui.
+vm_resources:
+  vm-app: { cores: 4, memory_mb: 8192, disk_gb: 40 }
+  vm-media: { cores: 2, memory_mb: 4096, disk_gb: 100 }
 
 # Utilisateur des conteneurs (Radarr, qBittorrent, api) et des fichiers NFS
 flixy_uid: 1000
@@ -16,31 +35,46 @@ data_mode: "2775"
 
 data_path: /data/flixy
 import_path: "{{ data_path }}/import"   # repli : import manuel Radarr
-compose_dir: /opt/flixy
+demo_path: "{{ data_path }}/demo"       # fichiers de la demo de secours
+compose_dir: /opt/flixy                 # vm-app
+media_compose_dir: /opt/flixy-media     # vm-media
 
 # NFSv4, export vers vm-app uniquement
 nfs_export_client: "{{ app_ip }}"
 nfs_export_options: "rw,sync,no_subtree_check,root_squash"
 nfs_mount_opts: "nfsvers=4.2,_netdev"
 
-# Tags verifies le 24/10/2026, digests dans docs/images.md
+# ---------------------------------------------------------------------------
+# Images
+# ---------------------------------------------------------------------------
+# Tags publics verifies le 24/10/2026, digests dans docs/images.md
 
-# Images construites par la CI GitLab, tag fixe pour la SAE
-# (sae-1.0 pas encore construit, voir docs/images.md)
-flixy_registry: registry.gitlab.com/kineflix
+# web, api et migrator : construites par moi sur vm-app (role flixy_app, images.yml)
+# a partir d'un clone en lecture seule du code Flixy, au commit note ci-dessous.
+# Rien n'est pousse sur le GitLab ni sur le registre de Flixy : les images restent
+# locales a vm-app, avec le tag fixe sae-1.0.
+flixy_image_prefix: flixy-sae
 flixy_image_tag: sae-1.0
 
-# Commit prevu pour chaque image Flixy (branche leo-p), repris dans le manifest.json
-# de chaque sauvegarde. A confirmer quand sae-1.0 est construit.
+# Depots du code (lecture seule, clones sur le noeud de controle)
+flixy_src:
+  back:
+    repo: "https://gitlab.com/kineflix/back-end.git"
+    version: "44e371bb29f15637114ce78cac4e7aa0da9c1b55"   # branche leo-p au 30/10
+  front:
+    repo: "https://gitlab.com/kineflix/front-end.git"
+    version: "feb36a6a530bd08108c94ca4b69b1aea1db65864"   # branche leo-p au 30/10
+
+# Commit de chaque image Flixy, repris dans le manifest.json de chaque sauvegarde
 flixy_code_refs:
-  web: "feb36a6a530bd08108c94ca4b69b1aea1db65864"       # kineflix/front-end, leo-p
-  api: "44e371bb29f15637114ce78cac4e7aa0da9c1b55"       # kineflix/back-end, leo-p
-  migrator: "44e371bb29f15637114ce78cac4e7aa0da9c1b55"  # meme depot et meme commit que l'api
+  web: "{{ flixy_src.front.version }}"       # kineflix/front-end, leo-p
+  api: "{{ flixy_src.back.version }}"        # kineflix/back-end, leo-p
+  migrator: "{{ flixy_src.back.version }}"   # meme depot et meme commit que l'api
 
 images:
-  web: "{{ flixy_registry }}/front-end/web:{{ flixy_image_tag }}"
-  api: "{{ flixy_registry }}/back-end/api:{{ flixy_image_tag }}"
-  migrator: "{{ flixy_registry }}/back-end/migrator:{{ flixy_image_tag }}"
+  web: "{{ flixy_image_prefix }}/web:{{ flixy_image_tag }}"
+  api: "{{ flixy_image_prefix }}/api:{{ flixy_image_tag }}"
+  migrator: "{{ flixy_image_prefix }}/migrator:{{ flixy_image_tag }}"
   postgres: "postgres:18.6-alpine"
   valkey: "valkey/valkey:9.1.2-alpine"
   minio: "pgsty/minio:RELEASE.2026-08-04T00-00-00Z"
@@ -55,10 +89,19 @@ ports:
   http: 80
   https: 443
   api: 3000          # interne
+  web: 3000          # interne
   radarr: 7878       # publie, filtre DOCKER-USER
   prowlarr: 9696     # interne, tunnel SSH
   qbittorrent: 8080  # interne, tunnel SSH
   nfs: 2049
+
+# Reseau docker de vm-media : sous-reseau fixe pour joindre les conteneurs depuis
+# l'hote (taches API d'Ansible, tunnel SSH) sans publier leurs ports
+media_docker_subnet: 172.30.0.0/24
+media_docker_ips:
+  radarr: 172.30.0.10
+  prowlarr: 172.30.0.11
+  qbittorrent: 172.30.0.12
 
 webhook_path: /v1/radarr/webhook
 minio_bucket: user.picture
@@ -67,6 +110,7 @@ minio_bucket: user.picture
 # (dump PostgreSQL + copie MinIO + SHA256SUMS + manifest.json)
 backup_dir: /srv/backups/flixy          # vm-media, hors de l'export NFS
 backup_staging_dir: /var/backups/flixy  # vm-app, preparation du jeu avant envoi
+backup_user: flixy-backup               # vm-media, compte limite a rsync (rrsync)
 backup_id_format: "%Y%m%d-%H%M%S"       # backup_id = horodatage, ex. 20261024-030000
 backup_retention_days: 7                # on garde toujours au moins le dernier jeu complet
 backup_timer_oncalendar: "*-*-* 03:00:00"
