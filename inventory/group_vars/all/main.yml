@@ -4,15 +4,19 @@
 debian_release: trixie
 
 # ---------------------------------------------------------------------------
-# Reseau. A DECIDER (Leo) : les valeurs sont des exemples.
-# - 192.168.1.50 repond deja sur le LAN (c'est un switch), il faut une autre IP pour vm-app
-# - admin_ip = la machine qui lance Ansible (Mac, ou une machine de rebond)
+# Reseau (choix de Leo, novembre 2026)
+# - vm-app = 192.168.1.54, vm-media = 192.168.1.55 (192.168.1.50 est pris par un switch)
+# - noeud de controle actuel : la machine de rebond qui passe par le Proxmox
+#   (ProxyJump pve-p340), donc les connexions SSH arrivent depuis 192.168.1.10
+# - plus tard (soutenance) : le Mac de Leo. Ajouter son IP dans admin_ips quand
+#   il sera sur le LAN (ou via Tailscale), puis relancer deploy.yml
 # ---------------------------------------------------------------------------
-admin_ip: 192.168.1.20           # A DECIDER : noeud de controle Ansible (SSH)
+admin_ip: 192.168.1.10           # noeud de controle actuel (rebond via pve-p340)
 admin_ips:                        # toutes les IP autorisees en SSH (UFW)
   - "{{ admin_ip }}"
-app_ip: 192.168.1.50             # A DECIDER : vm-app (192.168.1.50 est pris par un switch)
-media_ip: 192.168.1.51           # A DECIDER : vm-media
+  # - <ip du Mac>                 # a ajouter pour la demo depuis le Mac
+app_ip: 192.168.1.54             # vm-app
+media_ip: 192.168.1.55           # vm-media
 net_prefix: 24
 net_gateway: 192.168.1.1
 net_dns: 192.168.1.1
@@ -23,10 +27,11 @@ webhook_allowed_ip: "{{ media_ip }}"   # seul Radarr peut appeler /v1/radarr/web
 flixy_public_host: "{{ app_ip }}"
 
 # Ressources des VM (pour info / creation des VM sur Proxmox, pas utilise par les roles)
-# A DECIDER (Leo) : le Proxmox n'a que ~5 Go de RAM libre aujourd'hui.
+# RAM reduite par rapport au plan (8 Go / 4 Go) : le Proxmox n'a qu'environ 5 Go
+# de libre. Ballooning active (minimum 2 Go / 1 Go) pour ne pas gener les autres VM.
 vm_resources:
-  vm-app: { cores: 4, memory_mb: 8192, disk_gb: 40 }
-  vm-media: { cores: 2, memory_mb: 4096, disk_gb: 100 }
+  vm-app: { vmid: 104, cores: 4, memory_mb: 4096, balloon_mb: 2048, disk_gb: 40 }
+  vm-media: { vmid: 105, cores: 2, memory_mb: 2048, balloon_mb: 1024, disk_gb: 100 }
 
 # Utilisateur des conteneurs (Radarr, qBittorrent, api) et des fichiers NFS
 flixy_uid: 1000

@@ -19,7 +19,7 @@ sauvegardées (voir `sauvegarde-restauration.md`), si un élément manque après
 | client de téléchargement | `/api/v3/downloadclient` | qBittorrent, hôte `qbittorrent:8080`, catégorie `radarr` | rien n'est téléchargé |
 | catégorie qBittorrent | qBittorrent `/api/v2/torrents/categories` | `radarr` -> `/data/flixy/downloads/radarr` | Radarr ne retrouve pas ses téléchargements |
 | indexeurs | Prowlarr `/api/v1/applications` + `/api/v1/indexer`, puis commande `ApplicationIndexerSync` | appli Radarr en `fullSync` | aucune recherche possible |
-| webhook Connect | `/api/v3/notification` | `https://192.168.1.50/v1/radarr/webhook`, POST, secret Bearer, sur import / upgrade / suppression | le film est téléchargé mais n'arrive jamais dans le catalogue |
+| webhook Connect | `/api/v3/notification` | `https://192.168.1.54/v1/radarr/webhook`, POST, secret Bearer, sur import / upgrade / suppression | le film est téléchargé mais n'arrive jamais dans le catalogue |
 
 Les valeurs sont dans `roles/media_stack/defaults/main.yml`, les secrets dans Vault.
 

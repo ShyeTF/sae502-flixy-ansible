@@ -7,3 +7,6 @@ docker_user_regles:
   - nom: nginx https
     port: 443
     sources: ["{{ lan_cidr }}"]
+
+# 4 Go de RAM seulement : swap pour le build des images (si pas de partition swap)
+common_swap_mo: 2048

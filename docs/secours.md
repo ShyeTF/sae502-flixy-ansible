@@ -37,7 +37,7 @@ passer B pour A.
    7878) :
 
    ```bash
-   curl -s -X POST "http://192.168.1.51:7878/api/v3/command" \
+   curl -s -X POST "http://192.168.1.55:7878/api/v3/command" \
      -H "X-Api-Key: $RADARR_API_KEY" -H "Content-Type: application/json" \
      -d '{"name": "DownloadedMoviesScan", "path": "/data/flixy/import/Sintel (2010)", "importMode": "Move"}'
    ```
@@ -46,7 +46,7 @@ passer B pour A.
    dans un fichier ou dans l'historique.)
 
 5. Radarr range le fichier dans `/data/flixy/films/Sintel (2010)/` et appelle le webhook.
-6. Je montre la ligne du webhook dans les logs nginx (requête venant de 192.168.1.51,
+6. Je montre la ligne du webhook dans les logs nginx (requête venant de 192.168.1.55,
    réponse 2xx) et dans les logs de l'api.
 7. Le film apparaît dans le catalogue et se lit sur le site.
 
@@ -58,7 +58,7 @@ sur la prod), puis encore la veille :
 - [ ] dérouler les étapes 1 à 7
 - [ ] vérifier que le fichier final est en uid/gid 1000 et lisible par l'api via NFS
 - [ ] vérifier que l'appel du webhook avec un mauvais secret est refusé (401) et qu'il
-      est bloqué (403) depuis une autre IP que 192.168.1.51
+      est bloqué (403) depuis une autre IP que 192.168.1.55
 - [ ] remettre l'état de départ : supprimer le film dans Radarr (avec le fichier) et
       dans le catalogue, pour que la démo soit rejouable
 - [ ] chronométrer (objectif : moins de 3 min)

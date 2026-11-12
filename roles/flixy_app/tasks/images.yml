@@ -3,6 +3,19 @@
 # de Flixy : clone en LECTURE SEULE sur le noeud de controle, au commit fixe,
 # archive envoyee sur vm-app, docker build local avec le tag sae-1.0.
 
+# Si l'archive du commit est deja la (deposee a la main, par ex. faite avec
+# "git archive" sur un poste qui a acces au GitLab), on ne clone pas.
+- name: Code Flixy - archive du commit deja presente ?
+  ansible.builtin.stat:
+    path: "{{ flixy_src_local }}/{{ item.key }}-{{ item.value.version }}.tar.gz"
+  loop: "{{ flixy_src | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: archives_src
+  delegate_to: localhost
+  run_once: true
+  become: false
+
 - name: Code Flixy - clone en lecture seule au commit fixe (noeud de controle)
   ansible.builtin.git:
     repo: "{{ item.value.repo }}"
@@ -12,6 +25,7 @@
   loop: "{{ flixy_src | dict2items }}"
   loop_control:
     label: "{{ item.key }} @ {{ item.value.version[:8] }}"
+  when: not (archives_src.results | selectattr('item.key', 'equalto', item.key) | first).stat.exists
   delegate_to: localhost
   run_once: true
   become: false

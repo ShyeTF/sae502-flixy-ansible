@@ -1,0 +1,36 @@
+---
+# Swap : seulement si aucun swap n'est deja actif (partition creee a l'installation)
+- name: Swap - deja actif ?
+  ansible.builtin.command: swapon --show --noheadings
+  register: swap_actif
+  changed_when: false
+
+- name: Swap - creation du fichier /swapfile
+  when: swap_actif.stdout | length == 0
+  block:
+    - name: Swap - reserver le fichier
+      ansible.builtin.command: fallocate -l {{ common_swap_mo }}M /swapfile
+      args:
+        creates: /swapfile
+
+    - name: Swap - droits du fichier
+      ansible.builtin.file:
+        path: /swapfile
+        mode: "0600"
+
+    - name: Swap - formatage
+      ansible.builtin.command: mkswap /swapfile
+      changed_when: true
+
+    - name: Swap - activation
+      ansible.builtin.command: swapon /swapfile
+      changed_when: true
+
+- name: Swap - entree fstab
+  ansible.posix.mount:
+    src: /swapfile
+    path: none
+    fstype: swap
+    opts: sw
+    state: present
+  when: swap_actif.stdout | length == 0 or '/swapfile' in swap_actif.stdout

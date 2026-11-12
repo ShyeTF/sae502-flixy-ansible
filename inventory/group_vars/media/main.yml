@@ -4,3 +4,13 @@ docker_user_regles:
   - nom: radarr
     port: "{{ ports.radarr }}"
     sources: ["{{ app_ip }}"]
+
+# Indexeur Prowlarr : Internet Archive (archive.org), indexeur public et legal.
+# Definition "internetarchive" presente dans Prowlarr 2.6.5 (depot Prowlarr/Indexers v11).
+# Les films du domaine public / Creative Commons y sont publies en torrent.
+prowlarr_indexers:
+  - name: Internet Archive
+    definition: internetarchive
+    fields:
+      titleOnly: true
+      noMagnet: false

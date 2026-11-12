@@ -21,14 +21,19 @@ Périmètre : films uniquement (Radarr). Pas de Sonarr, pas de GPU, pas de tunne
 
 | VM | IP | OS | Conteneurs |
 |---|---|---|---|
-| vm-app | `app_ip` (à choisir, voir plus bas) | Debian 13 (trixie) | nginx, web, api, migrator, postgres, valkey, minio |
-| vm-media | `media_ip` (à choisir) | Debian 13 (trixie) | radarr, prowlarr, qbittorrent |
+| vm-app (VM 104, 4 vCPU, 4 Go, 40 Go) | 192.168.1.54 | Debian 13 (trixie) | nginx, web, api, migrator, postgres, valkey, minio |
+| vm-media (VM 105, 2 vCPU, 2 Go, 100 Go) | 192.168.1.55 | Debian 13 (trixie) | radarr, prowlarr, qbittorrent |
 
 > Les IP sont des variables (`inventory/group_vars/all/main.yml`). 192.168.1.50, prévue au
-> départ pour vm-app, est déjà utilisée par un switch sur le LAN : elle est à changer.
+> départ pour vm-app, est déjà utilisée par un switch sur le LAN, d'où .54 / .55.
+> La RAM a été réduite par rapport au plan (8 Go / 4 Go) car le Proxmox n'a qu'environ
+> 5 Go de libre ; le ballooning est activé (minimum 2 Go / 1 Go).
 
 - Passerelle 192.168.1.1, IP fixes dans l'inventaire.
-- Le Mac est le nœud de contrôle Ansible (SSH par clé, utilisateur `deploy`).
+- Nœud de contrôle Ansible : pour l'instant une machine de rebond qui passe par le
+  Proxmox (ProxyJump, les connexions arrivent depuis 192.168.1.10). Pour la soutenance,
+  le Mac : ajouter son IP dans `admin_ips` puis relancer `deploy.yml`.
+  SSH par clé, utilisateur `deploy`.
 - Images figées dans `inventory/group_vars/all/main.yml` : postgres 18.6, valkey 9.1.2,
   minio et mc RELEASE.2026-08-04, nginx 1.30.6, radarr 6.4.4, prowlarr 2.6.5,
   qbittorrent 5.2.4. Disponibilité vérifiée le 24/10/2026, tags et digests dans
@@ -43,7 +48,7 @@ Périmètre : films uniquement (Radarr). Pas de Sonarr, pas de GPU, pas de tunne
 2. L'api met la demande dans une file (Valkey) et ajoute le film dans Radarr par son API.
 3. Radarr cherche via Prowlarr et envoie le téléchargement à qBittorrent (catégorie radarr).
 4. Radarr range le fichier dans `/data/flixy/films` et appelle le webhook
-   `https://192.168.1.50/v1/radarr/webhook` (secret Bearer).
+   `https://192.168.1.54/v1/radarr/webhook` (secret Bearer).
 5. L'api ajoute le film au catalogue PostgreSQL. Le fichier est lu sur le montage NFS.
 
 ## Ports et filtrage
@@ -52,7 +57,7 @@ vm-app :
 - seul nginx publie des ports : 80 (fait uniquement un 301 vers le 443) et 443
 - api (3000), postgres (5432), valkey (6379) et minio (9000) ne sont pas publiés
 - le webhook passe par nginx en HTTPS, `location /v1/radarr/webhook` autorisée seulement
-  depuis 192.168.1.51, donc pas de port en plus
+  depuis 192.168.1.55, donc pas de port en plus
 
 vm-media :
 - seul Radarr publie le 7878. Comme Docker contourne UFW, il est filtré dans la chaîne
@@ -60,14 +65,14 @@ vm-media :
   `flixy-docker-user` à chaque démarrage de Docker (sur Debian 13, `iptables-persistent`
   est incompatible avec `ufw`)
 - Prowlarr et qBittorrent ne sont pas publiés. Pour leurs WebUI je passe par un tunnel
-  SSH, par ex. `ssh -L 9696:<ip conteneur>:9696 deploy@192.168.1.51`
+  SSH, par ex. `ssh -L 9696:<ip conteneur>:9696 deploy@192.168.1.55`
 
 UFW sur les deux VM : SSH (22) depuis le Mac, et NFS (2049) sur vm-media depuis vm-app
 seulement. Tout le reste en deny.
 
 ## NFS
 
-- vm-media exporte `/data/flixy` en NFSv4 vers 192.168.1.50 uniquement :
+- vm-media exporte `/data/flixy` en NFSv4 vers 192.168.1.54 uniquement :
   `rw,sync,no_subtree_check,root_squash`
 - dossier en uid/gid 1000, droits 2775. Radarr, qBittorrent et l'api tournent en 1000.
 - vm-app monte au même chemin avec `ansible.posix.mount` (option `_netdev`), plus un

@@ -16,3 +16,7 @@ common_paquets:
   - rsync
   - python3-requests
   - jq
+
+# Fichier d'echange (Mo). 0 = rien. Utile sur vm-app pour le build Next.js
+# avec seulement 4 Go de RAM. Cree seulement si la VM n'a aucun swap actif.
+common_swap_mo: 0

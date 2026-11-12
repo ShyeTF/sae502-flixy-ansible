@@ -1,9 +1,9 @@
 # Inventaire d'exemple. Copier en hosts.yml (non versionne) et adapter.
 # Les deux VM sont en Debian 13 (trixie), IP fixes en /24.
 #
-# A DECIDER (Leo) : 192.168.1.50 est deja pris par un switch sur le LAN,
-# donc les IP de vm-app et vm-media sont a choisir. Les valeurs ci-dessous
-# sont des exemples (memes valeurs que app_ip / media_ip dans group_vars).
+# vm-app = 192.168.1.54, vm-media = 192.168.1.55 (variables app_ip / media_ip).
+# Depuis une machine hors du LAN, on passe par le Proxmox en rebond, par exemple :
+#   ansible_ssh_common_args: "-o ProxyJump=root@<ip du proxmox>"
 #
 # 1er lancement sur une VM toute neuve : l'utilisateur deploy n'existe pas encore,
 # on passe par le compte cree a l'installation :

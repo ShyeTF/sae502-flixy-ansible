@@ -79,3 +79,7 @@
     direction: incoming
     policy: deny
     logging: "low"
+
+- name: Swap
+  ansible.builtin.include_tasks: swap.yml
+  when: common_swap_mo | int > 0
